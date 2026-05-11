@@ -12,6 +12,7 @@ int main() {
     VideoInput video_input;
     Preprocessor preprocessor;
     AcquisitionManager acq_manager;
+    Tracker tracker;
 
     // 2. 카메라 열기
     if (!video_input.open(0)) {

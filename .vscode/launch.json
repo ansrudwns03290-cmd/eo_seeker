@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug OpenCV with MSVC",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "C:/opencv/build/x64/vc16/bin;${env:PATH}"
+                }
+            ],
+            "console": "externalTerminal",
+            "preLaunchTask": "Build OpenCV with MSVC x64"
+        }
+    ]
+}
