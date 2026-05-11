@@ -1,0 +1,11 @@
+# 컴파일 결과물 무시
+*.obj
+*.dll
+*.pdb
+*.exe
+*.txt
+*.txt_src
+
+# 빌드 폴더 무시
+build/
+.vscode/

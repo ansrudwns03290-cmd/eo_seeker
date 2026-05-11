@@ -11,19 +11,19 @@
                 "/std:c++17",
                 "/Zi",
                 "/I", "include",
-                // install 폴더 내의 include 하나면 충분합니다.
                 "/I", "C:/opencv_build/build/install/include",
-                
+
                 "src/main.cpp",
                 "src/input/VideoInput.cpp",
                 "src/preprocessing/Preprocessor.cpp",
                 "src/acquisition/AcquisitionManager.cpp",
                 "src/target_tracking/tracker.cpp", 
-                
+
+                "/Fo${workspaceFolder}/build/", 
+                "/Fd${workspaceFolder}/build/", // 디버그 정보(.pdb) 파일 위치도 지정
+
                 "/link",
-                // 라이브러리 경로도 install 폴더 내부를 가리킵니다.
                 "/LIBPATH:C:/opencv_build/build/install/x64/vc17/lib",
-                
                 "opencv_core4140.lib",
                 "opencv_imgproc4140.lib",
                 "opencv_videoio4140.lib",
@@ -32,9 +32,9 @@
                 "opencv_tracking4140.lib",
                 "opencv_video4140.lib",
                 "opencv_imgcodecs4140.lib",
-                
+
                 "/MACHINE:X64",
-                "/OUT:build/main.exe"
+                "/OUT:${workspaceFolder}/build/main.exe"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
