@@ -43,10 +43,15 @@ int main() {
         cv::Mat roiImg = current_frame.image(target_box);
         acq_manager.setTargetModel(roiImg);
 
+        if (!tracker.init(current_frame.image, target_box)) {
+            std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;
+            return -1;
+        }
+
         // 시연을 위해 추출된 표적 알맹이(몽타주)를 별도 창으로 표시
         cv::imshow("Captured Target Model", roiImg);
         
-        std::cout << "[Init] Target Registered!" << std::endl;
+        std::cout << "[Init] Target & Tracker Registered!" << std::endl;
     } else {
         std::cout << "[Cancel] ROI 선택이 취소되었습니다." << std::endl;
         return 0;
@@ -65,26 +70,30 @@ int main() {
         cv::Mat processed_img;
         if (!preprocessor.process(current_frame, processed_img)) continue;
 
-        // [Step B] 시각화용 이미지 준비
-        // 원본 창용 (복제)
-        cv::Mat color_display = current_frame.image.clone();
-        // 흑백 창용 (BBox를 그리기 위해 다시 3채널 컬러 공간으로 변환하지만 색은 회색조 유지)
-        cv::Mat gray_display;
-        cv::cvtColor(processed_img, gray_display, cv::COLOR_GRAY2BGR);
+        bool isFound = tracker.update(current_frame.image, target_box);
 
-        // [Step C] BBox 및 정보 표시 (흑백 영상 위에 표시)
-        // 흑백 처리된 영상 위에 초록색 사각형 표시
-        cv::rectangle(gray_display, target_box, cv::Scalar(0, 255, 0), 2);
-        cv::putText(gray_display, "PROCESSING DATA (GRAY)", cv::Point(15, 30), 
-                    cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+        // [Step B] 시각화 준비
+        cv::Mat display_img = current_frame.image.clone();
         
-        // 원본 영상에는 간단한 안내 텍스트만 표시
-        cv::putText(color_display, "ORIGINAL SOURCE", cv::Point(15, 30), 
-                    cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 255), 2);
+        if (isFound) {
+            // 추적 성공 시: 초록색 사각형과 신뢰도 표시
+            cv::rectangle(display_img, target_box, cv::Scalar(0, 255, 0), 2);
+            cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), 
+                        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+            cv::putText(display_img, "Conf: " + std::to_string(tracker.getConfidence()), 
+                        cv::Point(15, 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
+        } else {
+            // 추적 실패 시: 빨간색 안내문 표시
+            cv::putText(display_img, "STATE: LOST", cv::Point(15, 30),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+        }
+        
+        // 프레임 정보 표시
+        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), 
+                    cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
-        // [Step D] 두 개의 창에 각각 출력
-        cv::imshow("1. Original Video", color_display);
-        cv::imshow("2. Preprocessed (Target BBox)", gray_display);
+        // [Step D] 화면 출력
+        cv::imshow("Tracking Test", display_img);
 
         // ESC 종료
         if (cv::waitKey(30) == 27) break;
