@@ -17,6 +17,12 @@ public:
     // 상태 및 정보 관리
     double getTargetRatio() const { return m_targetRatio; }
 
+    /**
+     * @brief 추출된 표적의 ORB 기술자(지문)를 반환
+     * @return cv::Mat 타입의 기술자 행렬
+     */
+    cv::Mat getTargetDescriptors() const { return m_targetDescriptors; }
+
 private:
     bool findLargestObject(const cv::Mat& binaryImg, cv::Rect& outRect);
     
