@@ -43,11 +43,13 @@ int main() {
         cv::Mat roiImg = current_frame.image(target_box);
         acq_manager.setTargetModel(roiImg);
 
+        tracker.setTargetDescriptors(acq_manager.getTargetDescriptors()); 
+
         if (!tracker.init(current_frame.image, target_box)) {
             std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;
             return -1;
         }
-
+    
         // 시연을 위해 추출된 표적 알맹이(몽타주)를 별도 창으로 표시
         cv::imshow("Captured Target Model", roiImg);
         
@@ -60,17 +62,21 @@ int main() {
     // 3. 루프 시작: 원본(컬러)과 전처리(흑백) 영상을 동시에 출력
     while (true) {
         if (!video_input.read(current_frame)) break;
-
+        
+        bool isFound = tracker.update(current_frame.image, target_box);
+        float conf = tracker.getConfidence();
+        
         // 메타데이터 확인 로그 (Resolution, Timestamp)
         std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
                   << " | Count: " << current_frame.frame_count
+                  << " | Conf: " << std::fixed << std::setprecision(2) << conf
                   << " | TS: " << current_frame.timestamp_ms << "ms" << std::endl;
 
         // [Step A] 전처리 수행 (컬러 -> 흑백 변환)
         cv::Mat processed_img;
         if (!preprocessor.process(current_frame, processed_img)) continue;
 
-        bool isFound = tracker.update(current_frame.image, target_box);
+        
 
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
@@ -80,7 +86,7 @@ int main() {
             cv::rectangle(display_img, target_box, cv::Scalar(0, 255, 0), 2);
             cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), 
                         cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
-            cv::putText(display_img, "Conf: " + std::to_string(tracker.getConfidence()), 
+            cv::putText(display_img, "Conf: " + std::to_string(conf), 
                         cv::Point(15, 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         } else {
             // 추적 실패 시: 빨간색 안내문 표시
