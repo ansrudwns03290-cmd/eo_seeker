@@ -27,7 +27,12 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
         // 너무 작게 잘리지 않도록 padding 추가
-        int padding = 5;
+        int padding;
+        if (actualObjectRect.width < 40 || actualObjectRect.height < 40) {
+            padding = 10; // 작은 물체는 특징점 확보를 위해 패딩을 넉넉히
+        } else {
+            padding = 5;  // 큰 물체는 정밀도를 위해 패딩을 작게
+        }
         cv::Rect expandedRect = actualObjectRect;
         expandedRect.x = std::max(0, actualObjectRect.x - padding);
         expandedRect.y = std::max(0, actualObjectRect.y - padding);
@@ -40,10 +45,9 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
 
-        cv::imshow("Debug ObjectOnly", objectOnly); // 이 창에 표적이 제대로 보이는지 확인하세요!
-        cv::waitKey(1);
+        m_isFeatureRich = (m_targetKeypoints.size() >= 10);
 
-        std::cout << "[Acquisition] Target Registered (Precision Mode)" << std::endl;
+        std::cout << "[Acquisition] Mode: " << (m_isFeatureRich ? "ORB-Rich" : "Template-Only") << std::endl;
     } else {
         // 물체 분리 실패 시 박스 전체 사용
         m_orb->detectAndCompute(roiImg, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
@@ -52,7 +56,7 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     }
 
     m_orb->detectAndCompute(roiImg(actualObjectRect), cv::noArray(), m_targetKeypoints, m_targetDescriptors);
-    std::cout << "[Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
+    std::cout << "[Acquisition: Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
 }
 
 /**

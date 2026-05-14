@@ -15,8 +15,6 @@ void Tracker::setTargetDescriptors(const cv::Mat& descriptors) {
     if (!descriptors.empty()) {
         m_targetDescriptors = descriptors.clone();
         std::cout << "[Tracker] Descriptors received! Size: " << m_targetDescriptors.rows << " points" << std::endl;
-    } else {
-        std::cerr << "[Tracker] Error: Received empty descriptors!" << std::endl;
     }
 }
 
@@ -80,33 +78,52 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 }
 
 float Tracker::verifyTarget(const cv::Mat& currentROI) {
-    if (m_targetDescriptors.empty() || currentROI.empty()) {
-        return 0.5f;
+    if (currentROI.empty()) return 0.0f;
+
+    // 1. 특징점 데이터가 있다면 ORB 시도
+    if (!m_targetDescriptors.empty()) {
+        float orbScore = calculateORBConfidence(currentROI);
+        // 만약 ORB 매칭이 어느 정도 나온다면 바로 반환
+        if (orbScore > 0.1f) return orbScore; 
     }
 
+    // 2. 특징점이 없거나 ORB 점수가 너무 낮으면 NCC 시도
+    if (!m_targetTemplate.empty()) {
+        return calculateNCCConfidence(currentROI);
+    }
+
+    return 0.2f; // 둘 다 실패 시
+}
+
+float Tracker::calculateORBConfidence(const cv::Mat& currentROI) {
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
-
-    // 현재 영역에서 특징점 추출
     m_orb->detectAndCompute(currentROI, cv::noArray(), keypoints, descriptors);
 
     if (descriptors.empty()) return 0.0f;
 
-    // 초기 모델과 매칭 수행
     std::vector<cv::DMatch> matches;
     m_matcher->match(m_targetDescriptors, descriptors, matches);
 
-    // 좋은 매칭점(Good Matches) 선별 (Hamming 거리 기준)
     int goodMatchCount = 0;
     for (const auto& match : matches) {
-        if (match.distance < 80.0) { // 임계값은 환경에 따라 조정 가능
-            goodMatchCount++;
-        }
+        if (match.distance < 80.0) goodMatchCount++;
     }
 
-    std::cout << "[Debug] Good Matches: " << goodMatchCount << " / Descriptors: " << descriptors.rows << std::endl;
+    std::cout << "[Tracker: Debug] ORB Matches: " << goodMatchCount << std::endl;
+    return std::min(static_cast<float>(goodMatchCount) / 10.0f, 1.0f);
+}
 
-    // 분모를 20 -> 10으로 낮춰서 신뢰도를 더 관대하게 산출
-    float score = static_cast<float>(goodMatchCount) / 10.0f; 
-    return std::min(score, 1.0f);
+float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
+    cv::Mat res, resizedROI;
+    cv::resize(currentROI, resizedROI, m_targetTemplate.size());
+    
+    cv::matchTemplate(resizedROI, m_targetTemplate, res, cv::TM_CCOEFF_NORMED);
+    double minVal, maxVal;
+    cv::minMaxLoc(res, &minVal, &maxVal);
+    
+    std::cout << "[Tracker: Debug] NCC Similarity: " << maxVal << std::endl;
+    
+    // NCC 결과는 음수가 나올 수 있으므로 0으로 보정
+    return std::max(0.0f, static_cast<float>(maxVal));
 }

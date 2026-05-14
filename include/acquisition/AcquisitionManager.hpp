@@ -17,6 +17,8 @@ public:
     // 상태 및 정보 관리
     double getTargetRatio() const { return m_targetRatio; }
 
+    bool isFeatureRich() const { return m_isFeatureRich; }
+    
     /**
      * @brief 추출된 표적의 ORB 기술자(지문)를 반환
      * @return cv::Mat 타입의 기술자 행렬
@@ -25,7 +27,8 @@ public:
 
 private:
     bool findLargestObject(const cv::Mat& binaryImg, cv::Rect& outRect);
-    
+    bool m_isFeatureRich = false; // 특징점이 충분히 추출되었는지 여부
+
     double m_targetRatio = 1.0; // 재획득 시 필터링을 위한 가로세로비
 
     // ORB 특징점 매칭 관련 (표적의 '몽타주' 데이터)

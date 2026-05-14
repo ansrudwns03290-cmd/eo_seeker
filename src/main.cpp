@@ -44,6 +44,7 @@ int main() {
         acq_manager.setTargetModel(roiImg);
 
         tracker.setTargetDescriptors(acq_manager.getTargetDescriptors()); 
+        tracker.setTargetTemplate(roiImg);
 
         if (!tracker.init(current_frame.image, target_box)) {
             std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;

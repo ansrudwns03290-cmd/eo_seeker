@@ -36,6 +36,9 @@ public:
 
     float getConfidence() const { return m_confidence; }
 
+    void setVerificationMode(bool useFeature) { m_useFeaturMode = useFeature; }
+    void setTargetTemplate(const cv::Mat& templateImg) { m_targetTemplate = templateImg.clone(); }
+
 private:
     cv::Ptr<cv::Tracker> m_tracker; // 추적기 객체 포인터
     cv::Ptr<cv::ORB> m_orb;
@@ -46,6 +49,10 @@ private:
     cv::Rect m_lastBbox;
     float m_confidence;
     bool m_isInitialized;
+    bool m_useFeaturMode = false; // 특징점 매칭 모드 사용 여부
+    cv::Mat m_targetTemplate; // 특징점 없을 때 사용할 표적 템플릿 이미지
 
     float verifyTarget(const cv::Mat& currentROI);
+    float calculateORBConfidence(const cv::Mat& currentROI);
+    float calculateNCCConfidence(const cv::Mat& currentROI);
 };
