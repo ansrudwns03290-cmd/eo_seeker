@@ -2,7 +2,7 @@
 
 AcquisitionManager::AcquisitionManager(){
     // ORB 특징점 추출기 초기화
-    m_orb = cv::ORB::create(500); 
+    m_orb = cv::ORB::create(1000, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
 }
 /**
  * @brief 초기 설정한 ROI에서 표적의 ORB 및 가로세로비 저장
@@ -17,14 +17,31 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     else
         gray = roiImg;
 
+    if (gray.cols < 31 || gray.rows < 31) {
+        std::cerr << "[Acquisition] Warning: ROI too small for ORB!" << std::endl;
+    }
+    
     cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
     // 2. 물체 윤곽선 추출 및 정밀 모델링
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
+        // 너무 작게 잘리지 않도록 padding 추가
+        int padding = 5;
+        cv::Rect expandedRect = actualObjectRect;
+        expandedRect.x = std::max(0, actualObjectRect.x - padding);
+        expandedRect.y = std::max(0, actualObjectRect.y - padding);
+        expandedRect.width = std::min(roiImg.cols - expandedRect.x, actualObjectRect.width + padding * 2);
+        expandedRect.height = std::min(roiImg.rows - expandedRect.y, actualObjectRect.height + padding * 2);
+
         cv::Mat objectOnly = roiImg(actualObjectRect); // roiImg에서 actualObjectRect 위치의 이미지만 반환
+        //cv::Mat objectOnly = roiImg(expandedRect); // 확장된 영역으로 ORB 추출
+
         m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
+
+        cv::imshow("Debug ObjectOnly", objectOnly); // 이 창에 표적이 제대로 보이는지 확인하세요!
+        cv::waitKey(1);
 
         std::cout << "[Acquisition] Target Registered (Precision Mode)" << std::endl;
     } else {
@@ -33,6 +50,9 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         m_targetRatio = static_cast<double>(roiImg.cols) / roiImg.rows;
         std::cout << "[Acquisition] Target Registered (Box Mode)" << std::endl;
     }
+
+    m_orb->detectAndCompute(roiImg(actualObjectRect), cv::noArray(), m_targetKeypoints, m_targetDescriptors);
+    std::cout << "[Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
 }
 
 /**
