@@ -77,7 +77,7 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 
     if (success) {
         m_frameCount++; // 프레임 카운터 증가
-        
+
         // 2. 현재 추적된 영역에서 신뢰도 검증 (ROI 안전 처리 포함)
         cv::Rect safeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
         cv::Mat currentROI = frame(safeRoi);

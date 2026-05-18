@@ -1,11 +1,14 @@
 ﻿#include <iostream>
 #include <opencv2/opencv.hpp>
+#include <chrono>
 
 #include "input/VideoInput.hpp"
 #include "common/Frame.hpp"
 #include "preprocessing/Preprocessor.hpp"
 #include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
+#include "state_estimation/StateEstimator.hpp"
+
 
 int main() {
     // 1. 모듈 객체 생성
@@ -13,6 +16,7 @@ int main() {
     Preprocessor preprocessor;
     AcquisitionManager acq_manager;
     Tracker tracker;
+    StateEstimator state_estimator;
 
     // 2. 카메라 열기
     if (!video_input.open(0)) {
@@ -61,11 +65,23 @@ int main() {
     }
 
     // 3. 루프 시작: 원본(컬러)과 전처리(흑백) 영상을 동시에 출력
-    
+    double last_timestamp_ms = 0.0;
+    bool is_first_track = true;
     double conf_sum = 0; //NCC와 ORB 기반 신뢰도 비교를 위한 카운터 (디버그용)
+
     while (true) {
         if (!video_input.read(current_frame)) break;
         
+        // 프레임 간 시간 간격(dt) 계산
+        // 프레임 메타데이터의 구조적 timstap_ms를 초(seconds) 단위로 변환
+        if (last_timestamp_ms == 0.0) {
+            last_timestamp_ms = current_frame.timestamp_ms;
+        }
+        double dt = (current_frame.timestamp_ms - last_timestamp_ms) / 1000.0; // ms -> s
+        last_timestamp_ms = current_frame.timestamp_ms;
+
+        if (dt <= 0.0) dt = 0.033; // 프레임 간격이 비정상적으로 짧거나 없는 경우 기본값(30fps) 사용
+
         bool isFound = tracker.update(current_frame.image, target_box);
         float conf = tracker.getConfidence();
         conf_sum += conf;
@@ -80,12 +96,34 @@ int main() {
         cv::Mat processed_img;
         if (!preprocessor.process(current_frame, processed_img)) continue;
 
+        // 칼만 필터(상태 추정) 핵심 테스트 로직
+        cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
+        cv::Point2f estimated_pos(0, 0);
+        cv::Point2f estimated_vel(0,0);
         
-
+        // 칼만 필터 예측 단계는 매 프레임 항상 수행
+        cv::Point2f predicted_pos = state_estimator.predict(dt);
+        
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
         
         if (isFound) {
+            // KCF 추적 성공 시(Tracking)
+            cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
+
+            if (is_first_track || !state_estimator.isInitialized()) {
+                // 첫 번째 추적 성공 시 또는 칼만 필터가 초기화되지 않은 경우: 상태 초기화
+                state_estimator.initialize(kcf_center);
+                is_first_track = false;
+
+                estimated_pos = kcf_center;
+                estimated_vel = cv::Point2f(0, 0);
+            } else {
+                // 이후 프레임에서는 칼만 필터 업데이트 수행
+                estimated_pos = state_estimator.update(kcf_center);
+                estimated_vel = state_estimator.getEstimatedVelocity();
+            }
+
             // 추적 성공 시: 초록색 사각형과 신뢰도 표시
             cv::rectangle(display_img, target_box, cv::Scalar(0, 255, 0), 2);
             cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), 
@@ -93,12 +131,36 @@ int main() {
             cv::putText(display_img, "Conf: " + std::to_string(conf), 
                         cv::Point(15, 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         } else {
-            // 추적 실패 시: 빨간색 안내문 표시
+            // 추적 실패 시 -> 칼만 필터 관성 에측치 사용
+            estimated_pos = predicted_pos;
+            estimated_vel = state_estimator.getEstimatedVelocity();
+
+            // LOST 관련 시각화
             cv::putText(display_img, "STATE: LOST", cv::Point(15, 30),
                         cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
-    
+            
+            if (state_estimator.isInitialized()) {
+                // 칼만 필터가 초기화된 상태에서 LOST인 경우: 빨간색 원으로 관성 예측 위치 표시
+                cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
+                cv::putText(display_img, "Predicted Pos", estimated_pos + cv::Point2f(10, -10),
+                            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
+            }
         }
         
+        // --- 칼만 필터 추정 결과 시각화 (공통) ---
+        if (state_estimator.isInitialized()) {
+            // 최적 추정 위치 표시 (파란색 점)
+            cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
+            
+            // 속도 벡터 표시 (파란색 화살표)
+            cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
+            cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
+
+            // 속도 텍스트 출력
+            std::string vel_txt = "Vel: (" + std::to_string(static_cast<int>(estimated_vel.x)) + ", " + std::to_string(static_cast<int>(estimated_vel.y)) + ")";
+            cv::putText(display_img, vel_txt, cv::Point(15, 90), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 0, 0), 1);
+        }
+
         // 프레임 정보 표시
         cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), 
                     cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
