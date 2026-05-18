@@ -49,6 +49,7 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
         m_isInitialized = true;
         m_lastBbox = bbox;
         m_confidence = 1.0f;
+        m_frameCount = 0; // 초기화 시 프레임 카운터 리셋
         
         std::cout << "[Tracker] KCF Initialized successfully." << std::endl;
     } catch (const cv::Exception& e) {
@@ -75,8 +76,20 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
     bool success = m_tracker->update(frame, outBbox);
 
     if (success) {
+        m_frameCount++; // 프레임 카운터 증가
+        
         // 2. 현재 추적된 영역에서 신뢰도 검증 (ROI 안전 처리 포함)
         cv::Rect safeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        cv::Mat currentROI = frame(safeRoi);
+
+        if(m_confidence > 0.7f && m_frameCount % 30 == 0) { 
+            m_targetTemplate = currentROI.clone(); // 신뢰도가 높을 때마다 템플릿 업데이트 (30프레임마다)
+            
+            std::vector<cv::KeyPoint> kp;
+            m_orb->detectAndCompute(currentROI, cv::noArray(), kp, m_targetDescriptors);
+            std::cout << "[Tracker] Template Updated! New Descriptor Count: " << m_targetDescriptors.rows << std::endl;
+        }
+
         if (safeRoi.width > 0 && safeRoi.height > 0) {
             m_confidence = verifyTarget(frame(safeRoi));
         }
@@ -146,6 +159,12 @@ float Tracker::calculateORBConfidence(const cv::Mat& currentROI) {
     return std::min(static_cast<float>(goodMatchCount) / 15.0f, 1.0f);
 }
 
+/**
+ * @brief NCC 매칭을 통한 신뢰도 계산
+ * @param currentROI 현재 추적된 표적 영역
+ * @return NCC 매칭 기반 신뢰도 점수 (0.0 ~ 1.0)
+ * - NCC 결과는 -1.0 ~ 1.0 범위이므로, 0.0 미만은 0.0으로 보정하여 반환
+ */
 float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
     cv::Mat res, resizedROI;
     cv::resize(currentROI, resizedROI, m_targetTemplate.size());

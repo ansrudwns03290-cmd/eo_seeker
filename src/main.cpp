@@ -61,12 +61,15 @@ int main() {
     }
 
     // 3. 루프 시작: 원본(컬러)과 전처리(흑백) 영상을 동시에 출력
+    
+    double conf_sum = 0; //NCC와 ORB 기반 신뢰도 비교를 위한 카운터 (디버그용)
     while (true) {
         if (!video_input.read(current_frame)) break;
         
         bool isFound = tracker.update(current_frame.image, target_box);
         float conf = tracker.getConfidence();
-        
+        conf_sum += conf;
+
         // 메타데이터 확인 로그 (Resolution, Timestamp)
         std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
                   << " | Count: " << current_frame.frame_count
@@ -93,6 +96,7 @@ int main() {
             // 추적 실패 시: 빨간색 안내문 표시
             cv::putText(display_img, "STATE: LOST", cv::Point(15, 30),
                         cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
+    
         }
         
         // 프레임 정보 표시
@@ -103,9 +107,11 @@ int main() {
         cv::imshow("Tracking Test", display_img);
 
         // ESC 종료
-        if (cv::waitKey(30) == 27) break;
+        if (cv::waitKey(1) == 27) break;
     }
 
+    
+    std::cout << "Average Confidence: " << (conf_sum / current_frame.frame_count) << std::endl; //디버그용 평균 신뢰도 출력
     video_input.release();
     cv::destroyAllWindows();
     return 0;
