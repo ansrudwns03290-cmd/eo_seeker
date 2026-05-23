@@ -38,13 +38,30 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
     }
 
     try {
-        // 1. 최신 OpenCV (4.5.1+) 방식: 알고리즘별 전용 create() 호출
-        // opencv_contrib 모듈이 정상 빌드되었다면 아래 코드가 작동합니다.
-        m_tracker = cv::TrackerKCF::create();
+        // -----------------------------------------------------------------
+        // [★ 수정 구간: 변수가 없을 때 우회하는 Bbox 스케일링 기법]
+        // -----------------------------------------------------------------
+        // 입력받은 bbox보다 약간 더 넓은 구역을 KCF의 모태 박스로 지정합니다.
+        // 가로세로를 약 1.3배 ~ 1.5배 키워서 탐색 범위(윈도우)를 강제로 확장합니다.
+        float scale_factor = 1.3f; 
+        
+        cv::Rect enlarged_bbox;
+        enlarged_bbox.width = static_cast<int>(bbox.width * scale_factor);
+        enlarged_bbox.height = static_cast<int>(bbox.height * scale_factor);
+        
+        // 박스가 커지면서 중심점이 틀어지지 않도록 좌상단(x, y) 좌표를 보정합니다.
+        enlarged_bbox.x = bbox.x - (enlarged_bbox.width - bbox.width) / 2;
+        enlarged_bbox.y = bbox.y - (enlarged_bbox.height - bbox.height) / 2;
 
-        // 2. 추적기 초기화 
-        // 최신 버전의 init()은 성공 시 void를 반환하므로 try-catch로 성공을 보장합니다.
-        m_tracker->init(frame, bbox);
+        // 화면 밖으로 박스가 나가지 않도록 경계 안전 처리
+        cv::Rect img_rect(0, 0, frame.cols, frame.rows);
+        enlarged_bbox = enlarged_bbox & img_rect;
+
+        // 기본 구조체로 안전하게 생성
+        m_tracker = cv::TrackerKCF::create();
+        
+        // ★ 확장된 박스로 초기화 수행 (탐색 윈도우가 자동으로 넓어짐)
+        m_tracker->init(frame, enlarged_bbox);
         
         m_isInitialized = true;
         m_lastBbox = bbox;

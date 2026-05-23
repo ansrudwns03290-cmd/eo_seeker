@@ -82,9 +82,22 @@ int main() {
 
         if (dt <= 0.0) dt = 0.033; // 프레임 간격이 비정상적으로 짧거나 없는 경우 기본값(30fps) 사용
 
+        // [Step 2] 칼만 필터 예측 단계 선행 (매 프레임 무조건 먼저 수행)
+        cv::Point2f predicted_pos = state_estimator.predict(dt);
+
+        // 첫 프레임이 아니고, 칼만 필터가 이미 정상 동작 중(Initialized)일 때만 관성 유도를 적용합니다.
+        if (!is_first_track && state_estimator.isInitialized()) {
+            // KCF를 구동하기 전에, target_box의 중심점을 칼만이 예측한 물리적 위치로 강제 이동시킵니다.
+            target_box.x = predicted_pos.x - target_box.width / 2.0f;
+            target_box.y = predicted_pos.y - target_box.height / 2.0f;
+
+            // 이미지 경계 안전 처리 (화면 밖으로 나가는 것 방지)
+            cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
+            target_box = target_box & img_rect;
+        }
+
         bool isFound = tracker.update(current_frame.image, target_box);
         float conf = tracker.getConfidence();
-        conf_sum += conf;
 
         // 메타데이터 확인 로그 (Resolution, Timestamp)
         std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
@@ -92,17 +105,21 @@ int main() {
                   << " | Conf: " << std::fixed << std::setprecision(2) << conf
                   << " | TS: " << current_frame.timestamp_ms << "ms" << std::endl;
 
+        // [디버그용 측정 오차 계산]
+        if (isFound && state_estimator.isInitialized()) {
+            cv::Point2f kcf_c(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
+            // 칼만이 예측했던 위치(predicted_pos)와 실제 KCF가 찾은 위치(kcf_c)의 거리(오차) 계산
+            double error = cv::norm(predicted_pos - kcf_c); 
+            std::cout << "   [Kalman Debug] Prediction Error: " << error << " pixels" << std::endl;
+        }
+        
         // [Step A] 전처리 수행 (컬러 -> 흑백 변환)
         cv::Mat processed_img;
         if (!preprocessor.process(current_frame, processed_img)) continue;
 
         // 칼만 필터(상태 추정) 핵심 테스트 로직
-        cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
         cv::Point2f estimated_pos(0, 0);
         cv::Point2f estimated_vel(0,0);
-        
-        // 칼만 필터 예측 단계는 매 프레임 항상 수행
-        cv::Point2f predicted_pos = state_estimator.predict(dt);
         
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
@@ -110,12 +127,12 @@ int main() {
         if (isFound) {
             // KCF 추적 성공 시(Tracking)
             cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
-
+            conf_sum += conf;
+            
             if (is_first_track || !state_estimator.isInitialized()) {
                 // 첫 번째 추적 성공 시 또는 칼만 필터가 초기화되지 않은 경우: 상태 초기화
                 state_estimator.initialize(kcf_center);
                 is_first_track = false;
-
                 estimated_pos = kcf_center;
                 estimated_vel = cv::Point2f(0, 0);
             } else {
