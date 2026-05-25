@@ -106,12 +106,12 @@ int main() {
                   << " | TS: " << current_frame.timestamp_ms << "ms" << std::endl;
 
         // [디버그용 측정 오차 계산]
-        if (isFound && state_estimator.isInitialized()) {
-            cv::Point2f kcf_c(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
-            // 칼만이 예측했던 위치(predicted_pos)와 실제 KCF가 찾은 위치(kcf_c)의 거리(오차) 계산
-            double error = cv::norm(predicted_pos - kcf_c); 
-            std::cout << "   [Kalman Debug] Prediction Error: " << error << " pixels" << std::endl;
-        }
+        // if (isFound && state_estimator.isInitialized()) {
+        //     cv::Point2f kcf_c(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
+        //     // 칼만이 예측했던 위치(predicted_pos)와 실제 KCF가 찾은 위치(kcf_c)의 거리(오차) 계산
+        //     double error = cv::norm(predicted_pos - kcf_c); 
+        //     std::cout << "   [Kalman Debug] Prediction Error: " << error << " pixels" << std::endl;
+        // }
         
         // [Step A] 전처리 수행 (컬러 -> 흑백 변환)
         cv::Mat processed_img;

@@ -68,6 +68,12 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
         m_confidence = 1.0f;
         m_frameCount = 0; // 초기화 시 프레임 카운터 리셋
         
+        cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        if (safeRoi.width > 0 && safeRoi.height > 0) {
+            // 초기 프레임 조각을 템플릿 정답지로 강제 박제
+            m_targetTemplate = frame(safeRoi).clone(); 
+        }
+
         std::cout << "[Tracker] KCF Initialized successfully." << std::endl;
     } catch (const cv::Exception& e) {
         std::cerr << "[Tracker] Init Exception: " << e.what() << std::endl;
@@ -183,6 +189,8 @@ float Tracker::calculateORBConfidence(const cv::Mat& currentROI) {
  * - NCC 결과는 -1.0 ~ 1.0 범위이므로, 0.0 미만은 0.0으로 보정하여 반환
  */
 float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
+    if (m_targetTemplate.empty() || currentROI.empty()) return 0.0f;
+
     cv::Mat res, resizedROI;
     cv::resize(currentROI, resizedROI, m_targetTemplate.size());
     
@@ -190,8 +198,26 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
     double minVal, maxVal;
     cv::minMaxLoc(res, &minVal, &maxVal);
     
-    //std::cout << "[Tracker: Debug] NCC Similarity: " << maxVal << std::endl;
+    float rawNcc = static_cast<float>(maxVal);
+
+    // ★ [핵심 보정 알고리즘] ★
+    // rawNcc가 0.45 이상이면 거의 완벽히 잡은 상태이므로 0.9 ~ 1.0으로 매핑하고,
+    // 0.2 이하로 떨어지면 완전히 놓친 배경 상태로 매핑합니다.
+    float finalConf = 0.0f;
+    float minThresh = 0.25f;
+    float maxThresh = 0.48f;
+
+    if (rawNcc >= maxThresh) {
+        finalConf = 1.0f;
+    } else if (rawNcc <= minThresh) {
+        finalConf = 0.0f;
+    } else {
+        // 중간 구간 선형 보정 (0.25 ~ 0.48 사이의 점수를 0.0 ~ 1.0으로 확대)
+        finalConf = (rawNcc - minThresh) / (maxThresh - minThresh);
+    }
     
-    // NCC 결과는 음수가 나올 수 있으므로 0으로 보정
-    return std::max(0.0f, static_cast<float>(maxVal));
+    // 디버그용 출력으로 실제 원본 점수와 보정 점수를 같이 모니터링합니다.
+    // std::cout << "[NCC Debug] Raw: " << rawNcc << " -> Enhanced Conf: " << finalConf << std::endl;
+    
+    return finalConf;
 }
