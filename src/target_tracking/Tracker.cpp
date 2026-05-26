@@ -31,48 +31,64 @@ void Tracker::setTargetDescriptors(const cv::Mat& descriptors) {
  */
 bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
     if (m_isInitialized) return true;
-
+    
     if (frame.empty() || bbox.width <= 0 || bbox.height <= 0) {
         std::cerr << "[Tracker] Invalid Init Data!" << std::endl;
         return false;
     }
 
     try {
-        // -----------------------------------------------------------------
-        // [★ 수정 구간: 변수가 없을 때 우회하는 Bbox 스케일링 기법]
-        // -----------------------------------------------------------------
+        cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        if (safeRoi.width <= 0 || safeRoi.height <= 0) return false;
+
+        // 원본 정답지 템플릿 저장 (NCC 검증용)
+        m_targetTemplate = frame(safeRoi).clone();
+        
+        // 작은 표적 강제 해상도 업스케일링
+        cv::Mat kcfInputFrame = frame.clone();
+        cv::Rect kcfInputBbox = bbox;
+
+        // 표적 가로 길이가 60픽셀보다 작다면 업스케일링 적용 (KCF가 작은 물체를 잘 못 잡는 경우 보완)
+        if (bbox.width < 60) {
+            std::cout << "[Tracker:Upscaling] Target too small (" << bbox.width
+                        << "px). Scaling up image by 2x for KCF." << std::endl;
+
+            // 전체 이미지 가로세로 2배 확대
+            cv::resize(frame, kcfInputFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+
+            // 가상 이미지 해상도에 맞춰 KCF에 입력할 사각형 좌표도 2배 확대
+            kcfInputBbox.x = bbox.x * 2;
+            kcfInputBbox.y = bbox.y * 2;
+            kcfInputBbox.width = bbox.width * 2;
+            kcfInputBbox.height = bbox.height * 2;
+        }
+
         // 입력받은 bbox보다 약간 더 넓은 구역을 KCF의 모태 박스로 지정합니다.
         // 가로세로를 약 1.3배 ~ 1.5배 키워서 탐색 범위(윈도우)를 강제로 확장합니다.
         float scale_factor = 1.3f; 
         
         cv::Rect enlarged_bbox;
-        enlarged_bbox.width = static_cast<int>(bbox.width * scale_factor);
-        enlarged_bbox.height = static_cast<int>(bbox.height * scale_factor);
+        enlarged_bbox.width = static_cast<int>(kcfInputBbox.width * scale_factor);
+        enlarged_bbox.height = static_cast<int>(kcfInputBbox.height * scale_factor);
         
         // 박스가 커지면서 중심점이 틀어지지 않도록 좌상단(x, y) 좌표를 보정합니다.
-        enlarged_bbox.x = bbox.x - (enlarged_bbox.width - bbox.width) / 2;
-        enlarged_bbox.y = bbox.y - (enlarged_bbox.height - bbox.height) / 2;
+        enlarged_bbox.x = kcfInputBbox.x - (enlarged_bbox.width - kcfInputBbox.width) / 2;
+        enlarged_bbox.y = kcfInputBbox.y - (enlarged_bbox.height - kcfInputBbox.height) / 2;
 
         // 화면 밖으로 박스가 나가지 않도록 경계 안전 처리
-        cv::Rect img_rect(0, 0, frame.cols, frame.rows);
+        cv::Rect img_rect(0, 0, kcfInputFrame.cols, kcfInputFrame.rows);
         enlarged_bbox = enlarged_bbox & img_rect;
 
         // 기본 구조체로 안전하게 생성
         m_tracker = cv::TrackerKCF::create();
         
         // ★ 확장된 박스로 초기화 수행 (탐색 윈도우가 자동으로 넓어짐)
-        m_tracker->init(frame, enlarged_bbox);
+        m_tracker->init(kcfInputFrame, enlarged_bbox);
         
         m_isInitialized = true;
         m_lastBbox = bbox;
         m_confidence = 1.0f;
         m_frameCount = 0; // 초기화 시 프레임 카운터 리셋
-        
-        cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
-        if (safeRoi.width > 0 && safeRoi.height > 0) {
-            // 초기 프레임 조각을 템플릿 정답지로 강제 박제
-            m_targetTemplate = frame(safeRoi).clone(); 
-        }
 
         std::cout << "[Tracker] KCF Initialized successfully." << std::endl;
     } catch (const cv::Exception& e) {
@@ -95,32 +111,54 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
         return false;
     }
 
+    cv::Mat kcfInputFrame = frame;
+    cv::Rect virtualBbox;
+
+    // 최초 등록 시 표적이 작아 업스케일링 했는지 검사
+    // m_lastBbox의 원본 가로 크기가 60 미만이었다면, 매 프레임 이미지 키우는 기법 적용
+    bool isUpsacledMode = (m_lastBbox.width < 60);
+
+    if (isUpsacledMode) {
+        // 현재 들어온 640x480 프레임을 2배 확대
+        cv::resize(frame, kcfInputFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+    }
+
     // 3. update 함수는 추적 성공 여부를 bool로 반환합니다.
-    bool success = m_tracker->update(frame, outBbox);
+    bool success = m_tracker->update(kcfInputFrame, outBbox);
 
     if (success) {
         m_frameCount++; // 프레임 카운터 증가
 
+        if (isUpsacledMode) {
+            // KCF가 2배 확대된 이미지에서 찾은 좌표를 원래 크기로 보정
+            outBbox.x /= 2;
+            outBbox.y /= 2;
+            outBbox.width /= 2;
+            outBbox.height /= 2;
+        } else{
+            outBbox = virtualBbox; // 원래 크기에서 찾은 좌표 그대로 사용
+        }
+
         // 2. 현재 추적된 영역에서 신뢰도 검증 (ROI 안전 처리 포함)
         cv::Rect safeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
-        cv::Mat currentROI = frame(safeRoi);
-
-        if(m_confidence > 0.7f && m_frameCount % 30 == 0) { 
-            m_targetTemplate = currentROI.clone(); // 신뢰도가 높을 때마다 템플릿 업데이트 (30프레임마다)
-            
-            std::vector<cv::KeyPoint> kp;
-            m_orb->detectAndCompute(currentROI, cv::noArray(), kp, m_targetDescriptors);
-            std::cout << "[Tracker] Template Updated! New Descriptor Count: " << m_targetDescriptors.rows << std::endl;
-        }
 
         if (safeRoi.width > 0 && safeRoi.height > 0) {
-            m_confidence = verifyTarget(frame(safeRoi));
+            cv::Mat currentROI = frame(safeRoi);
+
+            if(m_confidence > 0.7f && m_frameCount % 30 == 0) { 
+                m_targetTemplate = currentROI.clone(); // 신뢰도가 높을 때마다 템플릿 업데이트 (30프레임마다)
+                
+                std::vector<cv::KeyPoint> kp;
+                m_orb->detectAndCompute(currentROI, cv::noArray(), kp, m_targetDescriptors);
+                std::cout << "[Tracker] Template Updated! New Descriptor Count: " << m_targetDescriptors.rows << std::endl;
+            }
+
+            m_confidence = verifyTarget(currentROI);
+        } else {
+            m_confidence = 0.0f; // 안전한 ROI가 없으면 신뢰도 0으로 간주
         }
 
-        // 3. 신뢰도가 너무 낮으면(예: 0.1 미만) 추적 실패로 간주할 수도 있음
-        //if (m_confidence < 0.05f) success = false;
-        
-        m_lastBbox = outBbox;
+        m_lastBbox = outBbox; // 마지막 성공한 위치 업데이트
     } else {
         m_confidence = 0.0f;
         m_isInitialized = false; // 추적 실패 시 초기화 상태 해제 (재획득 유도)

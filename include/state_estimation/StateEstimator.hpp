@@ -1,5 +1,4 @@
-﻿#ifndef STATE_ESTIMATOR_HPP
-#define STATE_ESTIMATOR_HPP
+﻿#pragma once
 
 #include <opencv2/opencv.hpp>
 
@@ -46,5 +45,3 @@ private:
     const float m_process_noise_coef;  // 시스템(물리 모델) 불확실성 가중치
     const float m_measure_noise_coef;  // 센서(KCF 측정) 노이즈 가중치
 };
-
-#endif // STATE_ESTIMATOR_HPP
