@@ -116,20 +116,20 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 
     // 최초 등록 시 표적이 작아 업스케일링 했는지 검사
     // m_lastBbox의 원본 가로 크기가 60 미만이었다면, 매 프레임 이미지 키우는 기법 적용
-    bool isUpsacledMode = (m_lastBbox.width < 60);
+    bool isUpscaledMode = (m_lastBbox.width < 60);
 
-    if (isUpsacledMode) {
+    if (isUpscaledMode) {
         // 현재 들어온 640x480 프레임을 2배 확대
         cv::resize(frame, kcfInputFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
     }
 
     // 3. update 함수는 추적 성공 여부를 bool로 반환합니다.
-    bool success = m_tracker->update(kcfInputFrame, outBbox);
+    bool success = m_tracker->update(kcfInputFrame, virtualBbox);
 
     if (success) {
         m_frameCount++; // 프레임 카운터 증가
 
-        if (isUpsacledMode) {
+        if (isUpscaledMode) {
             // KCF가 2배 확대된 이미지에서 찾은 좌표를 원래 크기로 보정
             outBbox.x /= 2;
             outBbox.y /= 2;

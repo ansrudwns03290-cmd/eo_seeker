@@ -68,6 +68,8 @@ int main() {
     double last_timestamp_ms = 0.0;
     bool is_first_track = true;
     double conf_sum = 0; //NCC와 ORB 기반 신뢰도 비교를 위한 카운터 (디버그용)
+    bool isFirstLost = true; // 최초 LOST 상태 진입 여부 플래그 (디버그용)
+    double lostStartFrameCount = 0; // LOST 상태 진입 시점의 프레임 번호 기록 (디버그용)
 
     while (true) {
         if (!video_input.read(current_frame)) break;
@@ -162,6 +164,10 @@ int main() {
                 cv::putText(display_img, "Predicted Pos", estimated_pos + cv::Point2f(10, -10),
                             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
             }
+            if (isFirstLost) {
+                lostStartFrameCount = current_frame.frame_count;
+                isFirstLost = false;
+            }
         }
         
         // --- 칼만 필터 추정 결과 시각화 (공통) ---
@@ -190,7 +196,7 @@ int main() {
     }
 
     
-    std::cout << "Average Confidence: " << (conf_sum / current_frame.frame_count) << std::endl; //디버그용 평균 신뢰도 출력
+    std::cout << "Average Confidence: " << (conf_sum / lostStartFrameCount) << std::endl; //디버그용 평균 신뢰도 출력
     video_input.release();
     cv::destroyAllWindows();
     return 0;
