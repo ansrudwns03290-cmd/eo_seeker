@@ -39,6 +39,12 @@ public:
     void setVerificationMode(bool useFeature) { m_useFeaturMode = useFeature; }
     void setTargetTemplate(const cv::Mat& templateImg) { m_targetTemplate = templateImg.clone(); }
 
+    /**
+     * @brief REACQUIRE 상태에서 후보 검증
+     * @param currentROI 현재 후보 영역의 이미지 조각
+     * @return 후보의 신뢰도 점수 (0.0 ~ 1.0)
+     */
+    float verifyCandidate(const cv::Mat& currentROI);
 private:
     cv::Ptr<cv::Tracker> m_tracker; // 추적기 객체 포인터
     cv::Ptr<cv::ORB> m_orb;

@@ -8,6 +8,7 @@
 #include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
 #include "state_estimation/StateEstimator.hpp"
+#include "fsm/FsmModule.hpp"
 
 
 int main() {
@@ -17,6 +18,7 @@ int main() {
     AcquisitionManager acq_manager;
     Tracker tracker;
     StateEstimator state_estimator;
+    FsmModule fsm;
 
     // 2. 카메라 열기
     if (!video_input.open(0)) {
@@ -24,56 +26,63 @@ int main() {
         return -1;
     }
 
-    std::cout << "=== Acquisition & Preprocessing 통합 테스트 ===" << std::endl;
-    std::cout << "1. 'Original' 창에서 표적을 드래그하세요." << std::endl;
-    std::cout << "2. ENTER를 누르면 획득이 완료됩니다." << std::endl;
+    std::cout << "=== EO Seeker 실행 ===" << std::endl;
 
     Frame current_frame;
     cv::Rect target_box;
 
     // 1. 초기 ROI 설정을 위한 프레임 획득
-    if (!video_input.read(current_frame)) return -1;
-
-    // 2. 원본 영상 창에서 ROI 선택
-    cv::namedWindow("1. Original Video", cv::WINDOW_AUTOSIZE);
-    target_box = cv::selectROI("1. Original Video", current_frame.image, false);
-
-    if (target_box.width > 0 && target_box.height > 0) {
-        // 이미지 경계 안전 처리
-        cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
-        target_box = target_box & img_rect;
-
-        // 표적 모델 등록 (이미지 조각 전달)
-        cv::Mat roiImg = current_frame.image(target_box);
-        acq_manager.setTargetModel(roiImg);
-
-        tracker.setTargetDescriptors(acq_manager.getTargetDescriptors()); 
-        tracker.setTargetTemplate(roiImg);
-
-        if (!tracker.init(current_frame.image, target_box)) {
-            std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;
-            return -1;
-        }
-    
-        // 시연을 위해 추출된 표적 알맹이(몽타주)를 별도 창으로 표시
-        cv::imshow("Captured Target Model", roiImg);
+    if (video_input.read(current_frame)) {
+        target_box = cv::selectROI("Original & Tracking", current_frame.image, false);
         
-        std::cout << "[Init] Target & Tracker Registered!" << std::endl;
+        if (target_box.width > 0 && target_box.height > 0) {
+            /*tracker 초기화 및 초기 표적 등록*/
+            // 이미지 경계 안전 처리
+            cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
+            target_box = target_box & img_rect;
+
+            // 최초 프레임에 대해서도 전처리 수행
+            cv::Mat initial_processed_img;
+            if (!preprocessor.process(current_frame, initial_processed_img)) {
+                std::cerr << "[Error] 최초 프레임 전처리 실패!" << std::endl;
+                return -1;
+            }
+
+            // 표적 모델 등록 (이미지 조각 전달)
+            cv::Mat roiImg = initial_processed_img(target_box);
+            acq_manager.setTargetModel(roiImg);
+
+            tracker.setTargetDescriptors(acq_manager.getTargetDescriptors()); 
+            tracker.setTargetTemplate(roiImg);
+
+            if (!tracker.init(initial_processed_img, target_box)) {
+                std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;
+                return -1;
+            }
+
+            /*칼만 필터 초기화*/
+            cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
+            state_estimator.initialize(kcf_center); // 칼만 필터 초기화    
+            
+            fsm.setTargetBox(target_box);
+            fsm.forceSetState(FSMState::TRACK); // 초기 상태 설정
+
+            std::cout << "[Init] Target & Tracker Registered!" << std::endl;
+        }
     } else {
-        std::cout << "[Cancel] ROI 선택이 취소되었습니다." << std::endl;
-        return 0;
+        std::cout << "[Error] 초기 프레임을 읽어올 수 없습니다." << std::endl;
+        return -1;
     }
 
-    // 3. 루프 시작: 원본(컬러)과 전처리(흑백) 영상을 동시에 출력
-    double last_timestamp_ms = 0.0;
-    bool is_first_track = true;
-    double conf_sum = 0; //NCC와 ORB 기반 신뢰도 비교를 위한 카운터 (디버그용)
-    bool isFirstLost = true; // 최초 LOST 상태 진입 여부 플래그 (디버그용)
-    double lostStartFrameCount = 0; // LOST 상태 진입 시점의 프레임 번호 기록 (디버그용)
+    // 2. 루프 시작
+    double last_timestamp_ms = current_frame.timestamp_ms;
+    cv::Point2f estimated_pos(0, 0);
+    cv::Point2f estimated_vel(0,0);
 
     while (true) {
         if (!video_input.read(current_frame)) break;
         
+        /*칼만 필터 예측 수행*/
         // 프레임 간 시간 간격(dt) 계산
         // 프레임 메타데이터의 구조적 timstap_ms를 초(seconds) 단위로 변환
         if (last_timestamp_ms == 0.0) {
@@ -84,119 +93,159 @@ int main() {
 
         if (dt <= 0.0) dt = 0.033; // 프레임 간격이 비정상적으로 짧거나 없는 경우 기본값(30fps) 사용
 
-        // [Step 2] 칼만 필터 예측 단계 선행 (매 프레임 무조건 먼저 수행)
+        // 칼만 필터 예측 단계 선행 (매 프레임 무조건 먼저 수행)
         cv::Point2f predicted_pos = state_estimator.predict(dt);
 
-        // 첫 프레임이 아니고, 칼만 필터가 이미 정상 동작 중(Initialized)일 때만 관성 유도를 적용합니다.
-        if (!is_first_track && state_estimator.isInitialized()) {
-            // KCF를 구동하기 전에, target_box의 중심점을 칼만이 예측한 물리적 위치로 강제 이동시킵니다.
-            target_box.x = predicted_pos.x - target_box.width / 2.0f;
-            target_box.y = predicted_pos.y - target_box.height / 2.0f;
+        bool isFound = false;
+        float conf = 0.0f;
 
-            // 이미지 경계 안전 처리 (화면 밖으로 나가는 것 방지)
-            cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
-            target_box = target_box & img_rect;
+        // --- 전처리 수행: 컬러 프레임 받아서 흑백 메트릭스 생성
+        cv::Mat processed_img;
+        if (!preprocessor.process(current_frame, processed_img)) {
+            std::cout <<"[Warning] 프레임 전처리에 실패했습니다. 다음 프레임으로 넘어갑니다." << std::endl;
+            
+            if (current_frame.image.channels() == 3){
+                cv::cvtColor(current_frame.image, processed_img, cv::COLOR_BGR2GRAY);
+            } else {
+                processed_img = current_frame.image.clone();
+            }
         }
 
-        bool isFound = tracker.update(current_frame.image, target_box);
-        float conf = tracker.getConfidence();
+        /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
+        switch (fsm.getCurrentState()) {
+            
+            case FSMState::TRACK: {
+                // KCF를 구동하기 전에, target_box의 중심점을 칼만이 예측한 물리적 위치로 강제 이동시킵니다.
+                target_box.x = predicted_pos.x - target_box.width / 2.0f;
+                target_box.y = predicted_pos.y - target_box.height / 2.0f;
+                
+                // 이미지 경계 안전 처리 (화면 밖으로 나가는 것 방지)
+                cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
+                target_box = target_box & img_rect;
+
+                // KCF 추적 수행
+                isFound = tracker.update(processed_img, target_box);
+                conf = tracker.getConfidence();
+
+                if (isFound && conf >= 0.40) {
+                    // 추적 성공 시 -> 칼만 필터 보정 및 타겟 박스 확정
+                    cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, 
+                                           target_box.y + target_box.height / 2.0f);
+                    estimated_pos = state_estimator.update(kcf_center);
+                    fsm.setTargetBox(target_box);
+                } else{
+                    // 추적 실패 시 임시 관성 유지 처리
+                    estimated_pos = predicted_pos;
+                }
+                break;
+            }
+
+            case FSMState::LOST: {
+                // LOST 상태에서 KCF 구동하지 않고, 칼만 필터의 관성 위치로 박스 외형만 진행 (Coast Tracking)
+                estimated_pos = predicted_pos;
+                cv::Rect coast_box(estimated_pos.x - target_box.width / 2.0f,
+                                   estimated_pos.y - target_box.height / 2.0f,
+                                   target_box.width, target_box.height);
+                
+                cv::Rect safe_coast_box = coast_box & cv::Rect(0, 0, current_frame.width, current_frame.height);
+                fsm.setTargetBox(coast_box & cv::Rect(0, 0, current_frame.width, current_frame.height));
+
+                // 이진화 윤곽선 매칭을 이용한 고속 후보 탐색
+                cv::Rect candidateBox;
+                
+                bool foundCandidate = acq_manager.detectCandidateInPredictArea(
+                    processed_img,            // 1. 전처리 모듈이 만든 흑백 영상
+                    safe_coast_box,           // 2. 칼만이 예측한 안전 영역 사각형
+                    fsm.getSearchWindowSize(), // 3. FSM 내부 알고리즘이 결정한 동적 윈도우 크기 (80 또는 160)
+                    candidateBox              // 4. [출력] 새로 찾아낸 후보 좌표를 받아올 변수
+                );
+                
+                if (foundCandidate) {
+                    // 후보 발견된 경우 다음 프레임에 REACQUIRE 상태에서 검증하기 위해 플래그 설정
+                    isFound = false; // 현재 프레임에서는 아직 KCF 구동하지 않음
+                    conf = 0.6f; // 임시 합격 커트라인 점수를 주어 FSM의 update 스위치 동작
+                    
+                    fsm.setTargetBox(candidateBox);
+                } else {
+                    isFound = false;
+                    conf = 0.0f;
+                }
+                break;
+            }
+
+            case FSMState::REACQUIRE: {
+                estimated_pos = predicted_pos;
+
+                cv::Rect tempBox = fsm.getTargetBox(); //LOST에서 전달된 최종 관성 박스
+                tempBox = tempBox & cv::Rect(0, 0, current_frame.width, current_frame.height); // 이미지 경계 안전 처리
+
+                cv::Mat candidateROI = processed_img(tempBox); // 후보 영역 이미지 조각 추출
+                
+                float v_score = tracker.verifyCandidate(candidateROI); // 후보 검증 수행 (KCF 기반)
+                std::cout << "DEBUG: 후보 검증 점수 = " << v_score << std::endl;
+
+                if (v_score >= 0.65) {
+                    // 검증 통과 시 추적기 새 위치로 재부팅
+                    tracker.init(current_frame.image, tempBox);
+                    cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
+                    state_estimator.update(re_center); // 칼만 필터도 새 위치로 보정
+
+                    // FSM 강제 복귀 처리용 플래그
+                    isFound = true;
+                    conf = v_score;
+                }else {
+                    // 노이즈인 경우 FSM이 다음 프레임에서 SEARCH로 전이되도록 유도
+                    isFound = false;
+                    conf = 0.0f;
+                }
+                break;
+            }
+
+            case FSMState::SEARCH: {
+                // LOST 상태에서 1.5초 골든타임 오버 시 FSM 내부 update문에서 SEARCH로 강제 진입함
+                // 메인 중앙 제어 규칙에 의거, 리셋 처리를 위해 break하여 안전 해제 구역으로 탈출
+                std::cout << "[System Central Control] 표적 완전 상실로 제어를 종료합니다." << std::endl;
+                goto CORE_LOOP_EXIT; // 이중 루프 또는 제어권 완전 탈출을 위한 정석적인 goto 핸들링
+            }
+        }
+
+        fsm.update(current_frame, conf, isFound, estimated_vel); // FSM 상태 업데이트 (매 프레임마다 현재 프레임의 추적 성공 여부와 신뢰도 점수를 전달)
 
         // 메타데이터 확인 로그 (Resolution, Timestamp)
         std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
                   << " | Count: " << current_frame.frame_count
+                  << " | State: " << fsm.getStateString()
                   << " | Conf: " << std::fixed << std::setprecision(2) << conf
-                  << " | TS: " << current_frame.timestamp_ms << "ms" << std::endl;
-
-        // [디버그용 측정 오차 계산]
-        // if (isFound && state_estimator.isInitialized()) {
-        //     cv::Point2f kcf_c(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
-        //     // 칼만이 예측했던 위치(predicted_pos)와 실제 KCF가 찾은 위치(kcf_c)의 거리(오차) 계산
-        //     double error = cv::norm(predicted_pos - kcf_c); 
-        //     std::cout << "   [Kalman Debug] Prediction Error: " << error << " pixels" << std::endl;
-        // }
-        
-        // [Step A] 전처리 수행 (컬러 -> 흑백 변환)
-        cv::Mat processed_img;
-        if (!preprocessor.process(current_frame, processed_img)) continue;
-
-        // 칼만 필터(상태 추정) 핵심 테스트 로직
-        cv::Point2f estimated_pos(0, 0);
-        cv::Point2f estimated_vel(0,0);
+                  << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << std::endl;
         
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
         
-        if (isFound) {
-            // KCF 추적 성공 시(Tracking)
-            cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
-            conf_sum += conf;
-            
-            if (is_first_track || !state_estimator.isInitialized()) {
-                // 첫 번째 추적 성공 시 또는 칼만 필터가 초기화되지 않은 경우: 상태 초기화
-                state_estimator.initialize(kcf_center);
-                is_first_track = false;
-                estimated_pos = kcf_center;
-                estimated_vel = cv::Point2f(0, 0);
-            } else {
-                // 이후 프레임에서는 칼만 필터 업데이트 수행
-                estimated_pos = state_estimator.update(kcf_center);
-                estimated_vel = state_estimator.getEstimatedVelocity();
-            }
-
-            // 추적 성공 시: 초록색 사각형과 신뢰도 표시
-            cv::rectangle(display_img, target_box, cv::Scalar(0, 255, 0), 2);
-            cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), 
-                        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
-            cv::putText(display_img, "Conf: " + std::to_string(conf), 
-                        cv::Point(15, 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
-        } else {
-            // 추적 실패 시 -> 칼만 필터 관성 에측치 사용
-            estimated_pos = predicted_pos;
-            estimated_vel = state_estimator.getEstimatedVelocity();
-
-            // LOST 관련 시각화
-            cv::putText(display_img, "STATE: LOST", cv::Point(15, 30),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 255), 2);
-            
-            if (state_estimator.isInitialized()) {
-                // 칼만 필터가 초기화된 상태에서 LOST인 경우: 빨간색 원으로 관성 예측 위치 표시
-                cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
-                cv::putText(display_img, "Predicted Pos", estimated_pos + cv::Point2f(10, -10),
-                            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
-            }
-            if (isFirstLost) {
-                lostStartFrameCount = current_frame.frame_count;
-                isFirstLost = false;
-            }
+        // --- 실시간 모니터링 그래픽 시각화 ---
+        cv::Rect final_draw_box = fsm.getTargetBox();
+        if (fsm.getCurrentState() == FSMState::TRACK) {
+            cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
+            cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
+        } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
+            cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
+            cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
         }
         
-        // --- 칼만 필터 추정 결과 시각화 (공통) ---
-        if (state_estimator.isInitialized()) {
-            // 최적 추정 위치 표시 (파란색 점)
-            cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
-            
-            // 속도 벡터 표시 (파란색 화살표)
-            cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
-            cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
+        // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
+        cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
+        cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
+        cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
 
-            // 속도 텍스트 출력
-            std::string vel_txt = "Vel: (" + std::to_string(static_cast<int>(estimated_vel.x)) + ", " + std::to_string(static_cast<int>(estimated_vel.y)) + ")";
-            cv::putText(display_img, vel_txt, cv::Point(15, 90), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 0, 0), 1);
-        }
-
-        // 프레임 정보 표시
-        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), 
-                    cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
-
-        // [Step D] 화면 출력
+        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
         cv::imshow("Tracking Test", display_img);
 
-        // ESC 종료
-        if (cv::waitKey(1) == 27) break;
+        if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
     }
 
-    
-    std::cout << "Average Confidence: " << (conf_sum / lostStartFrameCount) << std::endl; //디버그용 평균 신뢰도 출력
+CORE_LOOP_EXIT:
+    std::cout << "[System] 루프 종료" << std::endl;
     video_input.release();
     cv::destroyAllWindows();
     return 0;

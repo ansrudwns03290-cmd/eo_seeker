@@ -10,11 +10,13 @@ public:
     // [핵심] 1. 초기 표적 설정: 사용자가 마우스로 선택한 이미지 조각에서 특징 추출
     void setTargetModel(const cv::Mat& roiImg);
   
-    // [미래 구현] 2. 표적 재획득: 추적 상실 시 Kalman 예측 위치 근처를 탐색
-    // 지금은 선언만 하고, 나중에 Kalman Filter 모듈 완성 후 구현
-    bool reAcquire(const cv::Mat& searchArea, cv::Rect predictedRect, cv::Rect& foundTarget);
-
-    // 상태 및 정보 관리
+    // 표적 상실 시 후보 탐색
+    bool detectCandidateInPredictArea(const cv::Mat& processedGrayImg,
+                                        const cv::Rect& predictedRect,
+                                        int windowSize,
+                                        cv::Rect& outCandidateBox);
+    
+                                        // 상태 및 정보 관리
     double getTargetRatio() const { return m_targetRatio; }
 
     bool isFeatureRich() const { return m_isFeatureRich; }

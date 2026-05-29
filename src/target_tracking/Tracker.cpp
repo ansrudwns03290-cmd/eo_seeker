@@ -41,56 +41,68 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
         cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
         if (safeRoi.width <= 0 || safeRoi.height <= 0) return false;
 
-        // 원본 정답지 템플릿 저장 (NCC 검증용)
+        // 원본 정답지 템플릿 저장 (NCC 검증용) - 원본 프레임(1채널 흑백)에서 그대로 복제
         m_targetTemplate = frame(safeRoi).clone();
         
-        // 작은 표적 강제 해상도 업스케일링
-        cv::Mat kcfInputFrame = frame.clone();
+        // 1. 메인에서 들어온 프레임을 조작하기 위해 workingFrame 변수로 먼저 안전 복제
+        cv::Mat workingFrame = frame.clone();
         cv::Rect kcfInputBbox = bbox;
 
-        // 표적 가로 길이가 60픽셀보다 작다면 업스케일링 적용 (KCF가 작은 물체를 잘 못 잡는 경우 보완)
-        if (bbox.width < 60) {
+        // 표적 가로 길이가 60픽셀보다 작다면 업스케일링 적용
+        bool isUpscaledMode = (bbox.width < 60);
+        if (isUpscaledMode) {
             std::cout << "[Tracker:Upscaling] Target too small (" << bbox.width
-                        << "px). Scaling up image by 2x for KCF." << std::endl;
+                      << "px). Scaling up image by 2x for KCF." << std::endl;
 
-            // 전체 이미지 가로세로 2배 확대
-            cv::resize(frame, kcfInputFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+            // [오타 교정] 복제본인 workingFrame을 소스로 삼아 2배 고속 확대 수행
+            cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
 
-            // 가상 이미지 해상도에 맞춰 KCF에 입력할 사각형 좌표도 2배 확대
+            // KCF에 입력할 사각형 좌표도 정확하게 2배 확대
             kcfInputBbox.x = bbox.x * 2;
             kcfInputBbox.y = bbox.y * 2;
             kcfInputBbox.width = bbox.width * 2;
             kcfInputBbox.height = bbox.height * 2;
         }
 
-        // 입력받은 bbox보다 약간 더 넓은 구역을 KCF의 모태 박스로 지정합니다.
-        // 가로세로를 약 1.3배 ~ 1.5배 키워서 탐색 범위(윈도우)를 강제로 확장합니다.
+        // 2. 입력받은 bbox보다 약 1.3배 넓은 구역을 KCF의 모태 박스(탐색 창)로 확장
         float scale_factor = 1.3f; 
-        
         cv::Rect enlarged_bbox;
         enlarged_bbox.width = static_cast<int>(kcfInputBbox.width * scale_factor);
         enlarged_bbox.height = static_cast<int>(kcfInputBbox.height * scale_factor);
         
-        // 박스가 커지면서 중심점이 틀어지지 않도록 좌상단(x, y) 좌표를 보정합니다.
+        // 중심점이 틀어지지 않도록 좌상단(x, y) 좌표 보정
         enlarged_bbox.x = kcfInputBbox.x - (enlarged_bbox.width - kcfInputBbox.width) / 2;
         enlarged_bbox.y = kcfInputBbox.y - (enlarged_bbox.height - kcfInputBbox.height) / 2;
 
-        // 화면 밖으로 박스가 나가지 않도록 경계 안전 처리
-        cv::Rect img_rect(0, 0, kcfInputFrame.cols, kcfInputFrame.rows);
+        // 화면 밖으로 박스가 나가지 않도록 경계 안전 처리 (확대된 workingFrame 기준 크기 적용)
+        cv::Rect img_rect(0, 0, workingFrame.cols, workingFrame.rows);
         enlarged_bbox = enlarged_bbox & img_rect;
 
-        // 기본 구조체로 안전하게 생성
+        // 3. [핵심 안전장치]: 크기 변환이 끝난 workingFrame이 1채널 흑백이라면,
+        // KCF 코어 내부의 고정 채널 충돌을 방지하기 위해 여기서 최종 3채널 컬러 포맷으로 가공합니다.
+        cv::Mat kcfInputFrame;
+        if (workingFrame.channels() == 1) {
+            cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
+        } else {
+            kcfInputFrame = workingFrame;
+        }
+
+        // KCF 트래커 엔진 인스턴스 생성
         m_tracker = cv::TrackerKCF::create();
         
-        // ★ 확장된 박스로 초기화 수행 (탐색 윈도우가 자동으로 넓어짐)
+        // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
         m_tracker->init(kcfInputFrame, enlarged_bbox);
         
         m_isInitialized = true;
-        m_lastBbox = bbox;
+        
+        // [싱크 교정]: update 함수와의 동역학 매칭을 위해 
+        // m_lastBbox에는 업스케일링 여부와 상관없이 무조건 '원본 크기(bbox)'를 저장합니다.
+        m_lastBbox = bbox; 
+        
         m_confidence = 1.0f;
-        m_frameCount = 0; // 초기화 시 프레임 카운터 리셋
+        m_frameCount = 0; 
 
-        std::cout << "[Tracker] KCF Initialized successfully." << std::endl;
+        std::cout << "[Tracker] KCF Initialized successfully. (Grayscale Target Ready)" << std::endl;
     } catch (const cv::Exception& e) {
         std::cerr << "[Tracker] Init Exception: " << e.what() << std::endl;
         m_isInitialized = false;
@@ -111,7 +123,7 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
         return false;
     }
 
-    cv::Mat kcfInputFrame = frame;
+    cv::Mat workingFrame = frame.clone();
     cv::Rect virtualBbox;
 
     // 최초 등록 시 표적이 작아 업스케일링 했는지 검사
@@ -120,7 +132,24 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 
     if (isUpscaledMode) {
         // 현재 들어온 640x480 프레임을 2배 확대
-        cv::resize(frame, kcfInputFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+        cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+        
+        virtualBbox = m_lastBbox;
+        virtualBbox.x *= 2;
+        virtualBbox.y *= 2;
+        virtualBbox.width *= 2;
+        virtualBbox.height *= 2;
+    } else {
+        virtualBbox = m_lastBbox;
+    }
+    
+    // [핵심 안전장치]: 크기 변환(resize)이 완전히 끝난 1채널 최종 데이터를 
+    // KCF 트래커 규격에 맞춰 3채널 포맷으로 복제 래핑합니다.
+    cv::Mat kcfInputFrame;
+    if (workingFrame.channels() == 1) {
+        cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
+    } else {
+        kcfInputFrame = workingFrame;
     }
 
     // 3. update 함수는 추적 성공 여부를 bool로 반환합니다.
@@ -131,10 +160,10 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 
         if (isUpscaledMode) {
             // KCF가 2배 확대된 이미지에서 찾은 좌표를 원래 크기로 보정
-            outBbox.x /= 2;
-            outBbox.y /= 2;
-            outBbox.width /= 2;
-            outBbox.height /= 2;
+            outBbox.x = virtualBbox.x / 2;
+            outBbox.y = virtualBbox.y / 2;
+            outBbox.width = virtualBbox.width / 2;
+            outBbox.height = virtualBbox.height / 2;
         } else{
             outBbox = virtualBbox; // 원래 크기에서 찾은 좌표 그대로 사용
         }
@@ -232,6 +261,18 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
     cv::Mat res, resizedROI;
     cv::resize(currentROI, resizedROI, m_targetTemplate.size());
     
+    // NCC 매칭을 위해 입력 이미지와 템플릿의 채널 수가 다르면, 안전하게 맞춰주는 전처리 단계
+    if (resizedROI.channels() != m_targetTemplate.channels()) {
+        if (m_targetTemplate.channels() == 1 && resizedROI.channels() == 3) {
+            // 정답지가 흑백인데 입력이 컬러라면, 입력을 흑백으로 변환
+            cv::cvtColor(resizedROI, resizedROI, cv::COLOR_BGR2GRAY);
+        } 
+        else if (m_targetTemplate.channels() == 3 && resizedROI.channels() == 1) {
+            // 정답지가 컬러인데 입력이 흑백이라면, 입력을 가짜 컬러로 확장
+            cv::cvtColor(resizedROI, resizedROI, cv::COLOR_GRAY2BGR);
+        }
+    }
+
     cv::matchTemplate(resizedROI, m_targetTemplate, res, cv::TM_CCOEFF_NORMED);
     double minVal, maxVal;
     cv::minMaxLoc(res, &minVal, &maxVal);
@@ -258,4 +299,47 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
     // std::cout << "[NCC Debug] Raw: " << rawNcc << " -> Enhanced Conf: " << finalConf << std::endl;
     
     return finalConf;
+}
+
+float Tracker::verifyCandidate(const cv::Mat& currentROI) {
+    if (currentROI.empty()) return 0.0f;
+
+    float finalScore = 0.0f;
+    bool orbValid = false;
+
+    // 1. 원본 특징점 descriptors가 충분히 존재할 때만 엄격히 매칭
+    const int MIN_DESCRIPTOR_COUNT = 7;
+    if (m_targetDescriptors.rows >= MIN_DESCRIPTOR_COUNT) {
+        float orbScore = calculateORBConfidence(currentROI);
+
+        // REACQUIRE 검증에서는 0.1을 넘겼다고 바로 통과시키지 않고 점수 보관
+        if (orbScore >= 0.4f) {
+            finalScore = orbScore;
+            orbValid = true;
+        }
+    }
+
+    std::cout << "DEBUG 1: ORB 검증 점수 = " << finalScore << " (Valid: " << orbValid << ")" << std::endl;
+    // 2. [하이브리드 NCC 검증]: ORB 점수가 애매하거나 특징점이 부족할 때, 템플릿 픽셀 매칭 점수와 '평균' 계산
+    if (!m_targetTemplate.empty()) {
+        std::cout << "DEBUG 2: ORB 검증 후 NCC 시도" << std::endl;
+        float nccScore = calculateNCCConfidence(currentROI);
+        std::cout << "DEBUG 3: NCC 검증 점수 = " << nccScore << std::endl;
+        if (orbValid) {
+            // ORB도 합격이고 NCC도 합격이면 두 신뢰도의 평균을 내어 정밀도를 극대화 (방산 Seeker 표준)
+            // finalScore = (finalScore + nccScore) / 2.0f;
+            finalScore = std::max(finalScore, nccScore); // ORB와 NCC 중 더 높은 점수를 최종 신뢰도로 채택하는 보수적 전략
+        } else {
+            // ORB가 실패했다면 NCC 점수에 전적으로 의존하되, 가산점 없이 정직한 점수 부여
+            finalScore = nccScore;
+        }
+    }
+
+    std::cout << "DEBUG 4: ORB & NCC 검증 점수 = " << finalScore << std::endl;
+    // 3. [안전장치]: 매칭에 완전히 실패했다면 기존처럼 0.2점을 주는 관용을 베풀지 않고 '0.0점'으로 칼같이 과락 처리
+    if (!orbValid && finalScore < 0.3f) {
+        return 0.0f; 
+    }
+
+    return finalScore;
 }
