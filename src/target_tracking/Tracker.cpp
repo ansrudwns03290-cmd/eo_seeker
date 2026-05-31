@@ -1,5 +1,6 @@
 ﻿#include "target_tracking/Tracker.hpp"
 #include <iostream>
+#include <algorithm>
 
 Tracker::Tracker() 
     : m_confidence(0.0f), m_isInitialized(false) {
@@ -54,7 +55,6 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
             std::cout << "[Tracker:Upscaling] Target too small (" << bbox.width
                       << "px). Scaling up image by 2x for KCF." << std::endl;
 
-            // [오타 교정] 복제본인 workingFrame을 소스로 삼아 2배 고속 확대 수행
             cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
 
             // KCF에 입력할 사각형 좌표도 정확하게 2배 확대
@@ -64,19 +64,8 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
             kcfInputBbox.height = bbox.height * 2;
         }
 
-        // 2. 입력받은 bbox보다 약 1.3배 넓은 구역을 KCF의 모태 박스(탐색 창)로 확장
-        float scale_factor = 1.3f; 
-        cv::Rect enlarged_bbox;
-        enlarged_bbox.width = static_cast<int>(kcfInputBbox.width * scale_factor);
-        enlarged_bbox.height = static_cast<int>(kcfInputBbox.height * scale_factor);
-        
-        // 중심점이 틀어지지 않도록 좌상단(x, y) 좌표 보정
-        enlarged_bbox.x = kcfInputBbox.x - (enlarged_bbox.width - kcfInputBbox.width) / 2;
-        enlarged_bbox.y = kcfInputBbox.y - (enlarged_bbox.height - kcfInputBbox.height) / 2;
-
-        // 화면 밖으로 박스가 나가지 않도록 경계 안전 처리 (확대된 workingFrame 기준 크기 적용)
         cv::Rect img_rect(0, 0, workingFrame.cols, workingFrame.rows);
-        enlarged_bbox = enlarged_bbox & img_rect;
+        kcfInputBbox = kcfInputBbox & img_rect;
 
         // 3. [핵심 안전장치]: 크기 변환이 끝난 workingFrame이 1채널 흑백이라면,
         // KCF 코어 내부의 고정 채널 충돌을 방지하기 위해 여기서 최종 3채널 컬러 포맷으로 가공합니다.
@@ -89,9 +78,8 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox) {
 
         // KCF 트래커 엔진 인스턴스 생성
         m_tracker = cv::TrackerKCF::create();
-        
         // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
-        m_tracker->init(kcfInputFrame, enlarged_bbox);
+        m_tracker->init(kcfInputFrame, kcfInputBbox);
         
         m_isInitialized = true;
         
@@ -122,7 +110,7 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
     if (!m_isInitialized || frame.empty()) {
         return false;
     }
-
+    
     cv::Mat workingFrame = frame.clone();
     cv::Rect virtualBbox;
 
@@ -154,7 +142,7 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
 
     // 3. update 함수는 추적 성공 여부를 bool로 반환합니다.
     bool success = m_tracker->update(kcfInputFrame, virtualBbox);
-
+    
     if (success) {
         m_frameCount++; // 프레임 카운터 증가
 
@@ -169,19 +157,113 @@ bool Tracker::update(const cv::Mat& frame, cv::Rect& outBbox) {
         }
 
         // 2. 현재 추적된 영역에서 신뢰도 검증 (ROI 안전 처리 포함)
-        cv::Rect safeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
-
+        cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        
         if (safeRoi.width > 0 && safeRoi.height > 0) {
-            cv::Mat currentROI = frame(safeRoi);
+            cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
 
             if(m_confidence > 0.7f && m_frameCount % 30 == 0) { 
-                m_targetTemplate = currentROI.clone(); // 신뢰도가 높을 때마다 템플릿 업데이트 (30프레임마다)
+                // ====================================================================
+                // 🌟 [메모리 교착 해결 방어선]: 안전한 1채널 흑백 독립 복제본 생성
+                // ====================================================================
+                cv::Mat grayROI;
                 
-                std::vector<cv::KeyPoint> kp;
-                m_orb->detectAndCompute(currentROI, cv::noArray(), kp, m_targetDescriptors);
-                std::cout << "[Tracker] Template Updated! New Descriptor Count: " << m_targetDescriptors.rows << std::endl;
-            }
+                // 1. 만약 currentROI가 3채널 컬러라면, 안전하게 1채널 흑백으로 강제 변환합니다.
+                if (currentROI.channels() == 3) {
+                    cv::cvtColor(currentROI, grayROI, cv::COLOR_BGR2GRAY);
+                } else {
+                    // 이미 1채널이라면, 주소 링크를 끊기 위해 반드시 깊은 복사(.clone())를 수행합니다.
+                    grayROI = currentROI.clone(); 
+                }
 
+                // 2. 완벽하게 격리된 1채널 흑백 이미지(grayROI)를 주입하므로 절대 멈추지 않습니다.
+                cv::Mat binImg;
+                cv::threshold(grayROI, binImg, 70, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);               
+                
+                // 모폴로지 연산으로 잔먼지 제거
+                cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+                cv::morphologyEx(binImg, binImg, cv::MORPH_OPEN, kernel);
+
+                // 윤곽선 추출
+                std::vector<std::vector<cv::Point>> contours;
+                cv::findContours(binImg, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+                int maxObjectWidth = 0;
+                for (const auto& contour : contours) {
+                    cv::Rect objectBox = cv::boundingRect(contour);
+                    if (objectBox.width > maxObjectWidth && objectBox.width > 10) {
+                        maxObjectWidth = objectBox.width;
+                    }
+                }
+
+                
+                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth; // 원본 크기로 환산
+                    
+                // 잡음 때문에 실측 실패하면 안전장치로 outBbox라도 백업
+                if (currentOriginalWidth <= 0) {
+                    currentOriginalWidth = outBbox.width;
+                }
+
+                std::cout << "[Tracker] KCF 크기: " << outBbox.width
+                            << "px, | 이진화 실측 크기" << currentOriginalWidth << "px" << std::endl;
+
+                // 표적의 실제 크기를 기반으로 추적기 스위칭 판단
+                if (isUpscaledMode && currentOriginalWidth >= 75) {
+                    std::cout << "[Tracker] 표적 크기 75px 도달! 원본 모드로 전환" << std::endl;
+
+                    cv::Rect origSafeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+                    m_targetTemplate = frame(origSafeRoi).clone();
+
+                    // 업스케일링 모드에서 원본 모드로 전환 시, ORB 기술자도 원본 크기에 맞게 재추출하여 업데이트합니다.
+                    std::vector<cv::KeyPoint> kp;
+                    m_targetDescriptors.release(); // 기존 기술자 데이터 해제
+                    m_orb->detectAndCompute(m_targetTemplate, cv::noArray(), kp, m_targetDescriptors);
+
+                    // KCF 트래커도 원본 크기에 맞춰 재부팅합니다.
+                    m_tracker.release(); // 기존 트래커 객체 해제
+                    m_tracker = cv::TrackerKCF::create();
+
+                    cv::Mat rawInitFrame;
+                    if (frame.channels() == 1) cv::cvtColor(frame, rawInitFrame, cv::COLOR_GRAY2BGR);
+                    else rawInitFrame = frame;
+
+                    m_tracker->init(rawInitFrame, origSafeRoi); // 원본 프레임과 원본 크기의 박스로 재부팅
+                    m_lastBbox = origSafeRoi; // 재부팅 완료 후 초기화 상태 확립
+                }
+                else if (!isUpscaledMode && currentOriginalWidth < 50) {
+                    std::cout << "[Tracker] 표적 크기 50px 미만! 업스케일 모드로 전환" << std::endl;
+
+                    cv::Rect origSafeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+                    m_targetTemplate = frame(origSafeRoi).clone();
+
+                    std::vector<cv::KeyPoint> kp;
+                    m_targetDescriptors.release();
+                    m_orb->detectAndCompute(m_targetTemplate, cv::noArray(), kp, m_targetDescriptors);
+
+                    m_tracker.release();
+                    m_tracker = cv::TrackerKCF::create();
+                    
+                    cv::Mat upInitFrame = frame.clone();
+                    cv::resize(upInitFrame, upInitFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
+                    
+                    cv::Mat kcfUpInitTmp;
+                    if (upInitFrame.channels() == 1) cv::cvtColor(upInitFrame, kcfUpInitTmp, cv::COLOR_GRAY2BGR);
+                    else kcfUpInitTmp = upInitFrame;
+
+                    cv::Rect upscaledBbox(outBbox.x * 2, outBbox.y * 2, outBbox.width * 2, outBbox.height * 2);
+                    m_tracker->init(kcfUpInitTmp, upscaledBbox);
+                }
+                else {
+                    std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
+                    // 스케일 변경 조건이 아닐 때는 최신 스냅샷 저장 연산만 수행
+                    m_targetTemplate = currentROI.clone(); // 신뢰도가 높을 때마다 템플릿 업데이트 (30프레임마다)
+                    std::vector<cv::KeyPoint> kp;
+                    m_targetDescriptors.release();
+                    m_orb->detectAndCompute(currentROI, cv::noArray(), kp, m_targetDescriptors);
+                }
+            }
+            
+            // 실시간 신뢰도 평가 점수 계산
             m_confidence = verifyTarget(currentROI);
         } else {
             m_confidence = 0.0f; // 안전한 ROI가 없으면 신뢰도 0으로 간주
@@ -304,42 +386,45 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI) {
 float Tracker::verifyCandidate(const cv::Mat& currentROI) {
     if (currentROI.empty()) return 0.0f;
 
-    float finalScore = 0.0f;
-    bool orbValid = false;
-
-    // 1. 원본 특징점 descriptors가 충분히 존재할 때만 엄격히 매칭
-    const int MIN_DESCRIPTOR_COUNT = 7;
-    if (m_targetDescriptors.rows >= MIN_DESCRIPTOR_COUNT) {
-        float orbScore = calculateORBConfidence(currentROI);
-
-        // REACQUIRE 검증에서는 0.1을 넘겼다고 바로 통과시키지 않고 점수 보관
-        if (orbScore >= 0.4f) {
-            finalScore = orbScore;
-            orbValid = true;
-        }
+    // 소형 표적 대응을 위한 2배 업스케일링 유지
+    cv::Mat verifiedRoi = currentROI.clone();
+    if (currentROI.cols < 60) {
+        cv::resize(currentROI, verifiedRoi, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
     }
 
-    std::cout << "DEBUG 1: ORB 검증 점수 = " << finalScore << " (Valid: " << orbValid << ")" << std::endl;
-    // 2. [하이브리드 NCC 검증]: ORB 점수가 애매하거나 특징점이 부족할 때, 템플릿 픽셀 매칭 점수와 '평균' 계산
+    // [Step 1] NCC 점수 먼저 정직하게 측정
+    float nccScore = 0.0f;
     if (!m_targetTemplate.empty()) {
-        std::cout << "DEBUG 2: ORB 검증 후 NCC 시도" << std::endl;
-        float nccScore = calculateNCCConfidence(currentROI);
-        std::cout << "DEBUG 3: NCC 검증 점수 = " << nccScore << std::endl;
-        if (orbValid) {
-            // ORB도 합격이고 NCC도 합격이면 두 신뢰도의 평균을 내어 정밀도를 극대화 (방산 Seeker 표준)
-            // finalScore = (finalScore + nccScore) / 2.0f;
-            finalScore = std::max(finalScore, nccScore); // ORB와 NCC 중 더 높은 점수를 최종 신뢰도로 채택하는 보수적 전략
-        } else {
-            // ORB가 실패했다면 NCC 점수에 전적으로 의존하되, 가산점 없이 정직한 점수 부여
-            finalScore = nccScore;
-        }
+        nccScore = calculateNCCConfidence(verifiedRoi);
     }
 
-    std::cout << "DEBUG 4: ORB & NCC 검증 점수 = " << finalScore << std::endl;
-    // 3. [안전장치]: 매칭에 완전히 실패했다면 기존처럼 0.2점을 주는 관용을 베풀지 않고 '0.0점'으로 칼같이 과락 처리
-    if (!orbValid && finalScore < 0.3f) {
+    // 🌟 [핵심 방어선 1]: 가림 현상 원천 차단
+    // NCC 점수가 0.20 이하라는 것은 픽셀 겉모양이 완전히 바뀌었다(가려졌다)는 뜻입니다.
+    // 이 경우 ORB가 아무리 만점을 뱉어도 무조건 "가짜 표적"으로 간주하고 즉시 튕겨냅니다.
+    if (nccScore <= 0.20f) {
+        std::cout << "[Verify Danger] NCC가 과락(0.00)입니다. 가림 현상 혹은 배경 오판으로 간주하여 즉시 기각합니다." << std::endl;
         return 0.0f; 
     }
 
-    return finalScore;
+    // [Step 2] ORB 점수 측정
+    float orbScore = 0.0f;
+    
+    // 이 내부에 '매칭된 최종 특징점 개수'를 반환받거나 검사하는 로직이 있다면 베스트입니다.
+    // 여기서는 안전하게 계산된 orbScore를 가져옵니다.
+    orbScore = calculateORBConfidence(verifiedRoi); 
+
+    std::cout << "[Verify Debug] Raw ORB: " << orbScore << " | Raw NCC: " << nccScore << std::endl;
+
+    // [Step 3] 융합 점수 계산 (가중치 평균 구조)
+    // max 구조를 버리고, 두 알고리즘이 교집합으로 동의할 때만 고득점을 주는 산술 구조 적용
+    float finalScore = 0.0f;
+    
+    if (orbScore >= 0.40f) {
+        // ORB와 NCC가 둘 다 양호할 때: NCC에 60%, ORB에 40%의 지분 부여 (텍스처 신뢰)
+        finalScore = (orbScore * 0.4f) + (nccScore * 0.6f);
+    } else {
+        // ORB 특징점이 뭉개졌더라도 NCC 질감이 어느 정도 살아있다면 NCC 점수를 하향 조정하여 반영
+        finalScore = nccScore * 0.7f;
+    }
+
 }

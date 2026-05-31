@@ -143,10 +143,10 @@ void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool 
             } 
             else {
                 // 모양이 전혀 다른 웅뚱한 노이즈(False Reacquire)였다면 즉시 SEARCH로 던져 시스템 안전 확보
-                std::cout << "[FSM Fail] 닮기만 한 가짜 표적 노이즈 판정. SEARCH로 리셋." << std::endl;
-                m_lowConfidenceCounter = 0;
-                m_targetBox = cv::Rect(0, 0, 0, 0);
-                nextState = FSMState::SEARCH;
+                std::cout << "[FSM Fail] 가짜 노이프 판정 (" << verificationScore
+                            << " ). LOST 상태 유지" << std::endl;
+
+                nextState = FSMState::LOST;
             }
             break;
         }
