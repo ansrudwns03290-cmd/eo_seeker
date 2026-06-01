@@ -184,7 +184,7 @@ int main() {
                 float v_score = tracker.verifyCandidate(candidateROI); // 후보 검증 수행 (KCF 기반)
                 std::cout << "DEBUG: 후보 검증 점수 = " << v_score << std::endl;
 
-                if (v_score >= 0.65) {
+                if (v_score >= 0.65f) {
                     // 검증 통과 시 추적기 새 위치로 재부팅
                     tracker.init(current_frame.image, tempBox);
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);

@@ -374,35 +374,39 @@ float Tracker::verifyCandidate(const cv::Mat& currentROI) {
         nccScore = calculateNCCConfidence(verifiedRoi);
     }
 
-    // 🌟 [핵심 방어선 1]: 가림 현상 원천 차단
-    // NCC 점수가 0.20 이하라는 것은 픽셀 겉모양이 완전히 바뀌었다(가려졌다)는 뜻입니다.
-    // 이 경우 ORB가 아무리 만점을 뱉어도 무조건 "가짜 표적"으로 간주하고 즉시 튕겨냅니다.
-    if (nccScore <= 0.20f) {
-        std::cout << "[Verify Danger] NCC가 과락(0.00)입니다. 가림 현상 혹은 배경 오판으로 간주하여 즉시 기각합니다." << std::endl;
-        return 0.0f; 
-    }
-
     // [Step 2] ORB 점수 측정
-    float orbScore = 0.0f;
-    
-    // 이 내부에 '매칭된 최종 특징점 개수'를 반환받거나 검사하는 로직이 있다면 베스트입니다.
-    // 여기서는 안전하게 계산된 orbScore를 가져옵니다.
-    orbScore = calculateORBConfidence(verifiedRoi); 
+    float orbScore = calculateORBConfidence(verifiedRoi); 
 
-    std::cout << "[Verify Debug] Raw ORB: " << orbScore << " | Raw NCC: " << nccScore << std::endl;
-
-    // [Step 3] 융합 점수 계산 (가중치 평균 구조)
-    // max 구조를 버리고, 두 알고리즘이 교집합으로 동의할 때만 고득점을 주는 산술 구조 적용
     float finalScore = 0.0f;
-    
-    if (orbScore >= 0.40f) {
-        // ORB와 NCC가 둘 다 양호할 때: NCC에 60%, ORB에 40%의 지분 부여 (텍스처 신뢰)
-        finalScore = (orbScore * 0.4f) + (nccScore * 0.6f);
-    } else {
-        // ORB 특징점이 뭉개졌더라도 NCC 질감이 어느 정도 살아있다면 NCC 점수를 하향 조정하여 반영
-        finalScore = nccScore * 0.7f;
+
+    int baseDescriptorCount = m_targetDescriptors.rows;
+
+    if (baseDescriptorCount < 7) {
+        // 특징점 수 너무 적으면 NCC만 최종 점수에 반영
+        finalScore = nccScore;
+
+        std::cout << "[Tracker: Verify] ORB 배제 (특징점 " << baseDescriptorCount
+                    << "개로 부족) - NCC 점수만 반영. Score: " << finalScore << std::endl;
+    } else{
+        //특징점 풍부하다면 융합 논리 적용
+        if (nccScore <= 0.20f) {
+            std::cout << "[Tracker: Verify] NCC 과락. 가림 현상 기각." << std::endl;
+            return 0.0f;
+        }
+
+        if (orbScore >= 0.40f) {
+            finalScore = (orbScore * 0.4f) + (nccScore * 0.6f);
+        } else {
+            // ORB 점수 낮아도 NCC 점수 70% 인정
+            finalScore = nccScore * 0.7f;
+        }
+
+        std::cout << "[Tracker: Verify] ORB Score: " << orbScore
+                    << ", NCC Score: " << nccScore
+                    << " -> Final Confidence: " << finalScore << std::endl;
     }
 
+    return finalScore;
 }
 
 void Tracker::reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor) {
