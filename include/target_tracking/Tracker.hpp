@@ -45,6 +45,15 @@ public:
      * @return 후보의 신뢰도 점수 (0.0 ~ 1.0)
      */
     float verifyCandidate(const cv::Mat& currentROI);
+
+    /**
+     * @brief 현재 시점의 outBbox를 기준으로 스케일을 반영하여 트래커 및 정답지 재설정
+     * @param frame 원본 1배 해상도 프레임
+     * @param outBbox 원본 해상도 기준 현재 표적 좌표
+     * @param scaleFactor 업스케일링 여부에 따른 스케일 팩터 (예: 2.0f)
+     */
+    void reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor);
+
 private:
     cv::Ptr<cv::Tracker> m_tracker; // 추적기 객체 포인터
     cv::Ptr<cv::ORB> m_orb;
