@@ -131,11 +131,15 @@ int main() {
                     // 추적 성공 시 -> 칼만 필터 보정 및 타겟 박스 확정
                     cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, 
                                            target_box.y + target_box.height / 2.0f);
+
                     estimated_pos = state_estimator.update(kcf_center);
+                    estimated_vel = state_estimator.getEstimatedVelocity();
+
                     fsm.setTargetBox(target_box);
                 } else{
                     // 추적 실패 시 임시 관성 유지 처리
                     estimated_pos = predicted_pos;
+                    estimated_vel = state_estimator.getEstimatedVelocity(); // 예측 단계에서 이미 속도는 계산되어 있음
                 }
                 break;
             }
@@ -143,6 +147,8 @@ int main() {
             case FSMState::LOST: {
                 // LOST 상태에서 KCF 구동하지 않고, 칼만 필터의 관성 위치로 박스 외형만 진행 (Coast Tracking)
                 estimated_pos = predicted_pos;
+                estimated_vel = state_estimator.getEstimatedVelocity();
+
                 cv::Rect coast_box(estimated_pos.x - target_box.width / 2.0f,
                                    estimated_pos.y - target_box.height / 2.0f,
                                    target_box.width, target_box.height);
@@ -175,6 +181,7 @@ int main() {
 
             case FSMState::REACQUIRE: {
                 estimated_pos = predicted_pos;
+                estimated_vel = state_estimator.getEstimatedVelocity();
 
                 cv::Rect tempBox = fsm.getTargetBox(); //LOST에서 전달된 최종 관성 박스
                 tempBox = tempBox & cv::Rect(0, 0, current_frame.width, current_frame.height); // 이미지 경계 안전 처리
@@ -188,8 +195,10 @@ int main() {
                     // 검증 통과 시 추적기 새 위치로 재부팅
                     tracker.init(current_frame.image, tempBox);
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
+                    
                     state_estimator.update(re_center); // 칼만 필터도 새 위치로 보정
 
+                    estimated_vel = state_estimator.getEstimatedVelocity(); // 보정된 속도 벡터 업데이트
                     // FSM 강제 복귀 처리용 플래그
                     isFound = true;
                     conf = v_score;

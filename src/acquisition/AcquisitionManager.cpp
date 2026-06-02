@@ -126,7 +126,10 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
 
     // 4. 잘라낸 영역에서 이진화 수행
     cv::Mat binaryImg;
-    cv::threshold(croppedSearchImg, binaryImg, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::threshold(croppedSearchImg, binaryImg, 70, 255, cv::THRESH_BINARY);
+
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
 
     // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
     cv::Rect localCandidateBox;
