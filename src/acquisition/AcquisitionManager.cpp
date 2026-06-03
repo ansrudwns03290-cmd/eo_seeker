@@ -23,6 +23,9 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     
     cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
+
     // 2. 물체 윤곽선 추출 및 정밀 모델링
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
