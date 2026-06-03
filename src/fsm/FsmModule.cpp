@@ -109,18 +109,11 @@ void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool 
                 break;
             }
 
-            // 2. [사용자님 논리 반영]: LOST 상태에서 모터를 밀며 경량 고속 후보 탐색을 수행
-            // 고속 상실 플래그에 따라 탐색 윈도우 크기를 가변 조정
-            int searchWindowSize = m_isHighSpeedLoss ? 160 : 80;
-            
-            // 외부 main 파이프라인에서 acq_manager.findFastCandidate()를 호출한 결과
-            // 후보군 물체가 감지되었음을 가정하는 가상 플래그 (통합 시 실제 함수로 대체)
-            bool foundCandidate = true; 
-            cv::Rect detectedCandidateBox(300, 200, 50, 50); // 예시 좌표
-
             // 1.5초 이내에 후보 윤곽선이 눈에 걸려들면 REACQUIRE(검증실) 상태로 전이
-            if (foundCandidate) {
-                m_temporaryBox = detectedCandidateBox; // 검증실로 넘겨줄 가짜 박스 보관
+            if (kcfSuccess) {
+                m_temporaryBox = m_targetBox; // 검증실로 넘겨줄 가짜 박스 보관
+                
+                std::cout << "[FSM:LOST] 후보 박스 발견 -> REACQUIRE로 전달" << std::endl;
                 nextState = FSMState::REACQUIRE;
             } else {
                 // 후보가 없으면 타이머를 계속 째며 LOST 상태 유지 (칼만 예측 구동 명령 지속)
@@ -130,9 +123,8 @@ void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool 
         }
 
         case FSMState::REACQUIRE: {
-            // [사용자님 논리 반영]: 들어온 후보 박스 딱 1프레임 정밀 검증실 가동
+            // 들어온 후보 박스 딱 1프레임 정밀 검증실 가동
             // 무거운 ORB/NCC 매칭 연산을 호출합니다.
-            // (실전 구현 시 tracker.verifyTarget() 연산 점수를 대입하게 됩니다)
             float verificationScore = trackerConfidence; // 예시 합격 점수
 
             if (verificationScore >= 0.65) {
