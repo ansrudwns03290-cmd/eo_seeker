@@ -31,7 +31,7 @@ int main() {
     Frame current_frame;
     cv::Rect target_box;
 
-    // 1. 초기 ROI 설정을 위한 프레임 획득
+    // 3. 초기 ROI 설정을 위한 프레임 획득
     if (video_input.read(current_frame)) {
         target_box = cv::selectROI("Original & Tracking", current_frame.image, false);
         
@@ -168,8 +168,8 @@ int main() {
                 
                 if (foundCandidate) {
                     // 후보 발견된 경우 다음 프레임에 REACQUIRE 상태에서 검증하기 위해 플래그 설정
-                    isFound = false; // 현재 프레임에서는 아직 KCF 구동하지 않음
-                    conf = 0.6f; // 임시 합격 커트라인 점수를 주어 FSM의 update 스위치 동작
+                    isFound = true; // 현재 프레임에서는 아직 KCF 구동하지 않음
+                    conf = 0.0f; // 임시 합격 커트라인 점수를 주어 FSM의 update 스위치 동작
                     
                     fsm.setTargetBox(candidateBox);
                 } else {
