@@ -58,7 +58,7 @@ void FsmModule::logTransition(FSMState fromState, FSMState toState) {
               << " -> " << getStateName(toState) << std::endl;
 }
 
-void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool kcfSuccess, const cv::Point2f& currentVelocity) {
+void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool kcfSuccess, const cv::Point2f& currentVelocity) {
     if (!currentFrame.is_valid) return;
 
     FSMState nextState = m_currentState;
@@ -73,7 +73,7 @@ void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool 
         }
 
         case FSMState::TRACK: {
-            if (kcfSuccess && trackerConfidence >= 0.40) {
+            if (kcfSuccess && currentConfidence >= 0.40) {
                 // 정상 추적 상태 유지
                 m_lowConfidenceCounter = 0; 
                 nextState = FSMState::TRACK;
@@ -125,7 +125,7 @@ void FsmModule::update(const Frame& currentFrame, float trackerConfidence, bool 
         case FSMState::REACQUIRE: {
             // 들어온 후보 박스 딱 1프레임 정밀 검증실 가동
             // 무거운 ORB/NCC 매칭 연산을 호출합니다.
-            float verificationScore = trackerConfidence; // 예시 합격 점수
+            float verificationScore = currentConfidence; // 예시 합격 점수
 
             if (verificationScore >= 0.65) {
                 std::cout << "[FSM Success] 표적 검증 통과! TRACK 상태로 복귀합니다." << std::endl;
