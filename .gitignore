@@ -5,7 +5,9 @@
 *.exe
 *.txt
 *.txt_src
+*.png
 
 # 빌드 폴더 무시
 build/
 .vscode/
+.debug_images/
