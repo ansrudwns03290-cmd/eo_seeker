@@ -219,15 +219,31 @@ int main() {
         }
 
         fsm.update(current_frame, conf, isFound, estimated_vel); // FSM 상태 업데이트 (매 프레임마다 현재 프레임의 추적 성공 여부와 신뢰도 점수를 전달)
-
-        // 메타데이터 확인 로그 (Resolution, Timestamp)
-        std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
-                  << " | Count: " << current_frame.frame_count
-                  << " | State: " << fsm.getStateString()
-                  << " | Conf: " << std::fixed << std::setprecision(2) << conf
+    
+        if (fsm.getCurrentState() == FSMState::TRACK) {
+            if (current_frame.frame_count % 10 == 0) {
+                std::cout << "Frame: " << current_frame.frame_count
+                  << " | [Tracking] Conf: " << std::fixed << std::setprecision(2) << conf
                   << " | TS: " << current_frame.timestamp_ms << "ms" 
                   << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
                   << std::endl;
+            }
+        } else {
+            std::cout << "Frame: " << current_frame.frame_count
+                  << " | [State: " << fsm.getStateString() << "] Conf: " << std::fixed << std::setprecision(2) << conf
+                  << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << std::endl;
+        }
+        // }
+        // // 메타데이터 확인 로그 (Resolution, Timestamp)
+        // std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
+        //           << " | Count: " << current_frame.frame_count
+        //           << " | State: " << fsm.getStateString()
+        //           << " | Conf: " << std::fixed << std::setprecision(2) << conf
+        //           << " | TS: " << current_frame.timestamp_ms << "ms" 
+        //           << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+        //           << std::endl;
         
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
