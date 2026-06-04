@@ -1,6 +1,7 @@
 ﻿#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <chrono>
+#include <iomanip>
 
 #include "input/VideoInput.hpp"
 #include "common/Frame.hpp"
@@ -9,7 +10,7 @@
 #include "target_tracking/Tracker.hpp"
 #include "state_estimation/StateEstimator.hpp"
 #include "fsm/FsmModule.hpp"
-
+#include "control/ControlCommand.hpp"
 
 int main() {
     // 1. 모듈 객체 생성
@@ -19,6 +20,7 @@ int main() {
     Tracker tracker;
     StateEstimator state_estimator;
     FsmModule fsm;
+    ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
 
     // 2. 카메라 열기
     if (!video_input.open(0)) {
@@ -82,9 +84,7 @@ int main() {
     while (true) {
         if (!video_input.read(current_frame)) break;
         
-        /*칼만 필터 예측 수행*/
-        // 프레임 간 시간 간격(dt) 계산
-        // 프레임 메타데이터의 구조적 timstap_ms를 초(seconds) 단위로 변환
+        // --- 칼만 필터 예측 수행 ---
         if (last_timestamp_ms == 0.0) {
             last_timestamp_ms = current_frame.timestamp_ms;
         }
@@ -220,19 +220,29 @@ int main() {
 
         fsm.update(current_frame, conf, isFound, estimated_vel); // FSM 상태 업데이트 (매 프레임마다 현재 프레임의 추적 성공 여부와 신뢰도 점수를 전달)
     
+        // 제어 명령 생성 모듈 구동
+        // 칼만 필터가 산출한 정밀 최적 중심 위치와 현재 시스템 상태 문자열 주입
+        ServoCommand servo_cmd = control_command.calculateCommand(estimated_pos.x, estimated_pos.y, fsm.getStateString());
+        
         if (fsm.getCurrentState() == FSMState::TRACK) {
             if (current_frame.frame_count % 10 == 0) {
                 std::cout << "Frame: " << current_frame.frame_count
                   << " | [Tracking] Conf: " << std::fixed << std::setprecision(2) << conf
-                  << " | TS: " << current_frame.timestamp_ms << "ms" 
-                  << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  // << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
+                  << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
+                  << " | Tilt: " << servo_cmd.tilt_cmd
                   << std::endl;
             }
         } else {
             std::cout << "Frame: " << current_frame.frame_count
                   << " | [State: " << fsm.getStateString() << "] Conf: " << std::fixed << std::setprecision(2) << conf
-                  << " | TS: " << current_frame.timestamp_ms << "ms" 
-                  << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  // << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << "Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
+                  << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
+                  << " | Tilt: " << servo_cmd.tilt_cmd
                   << std::endl;
         }
         // }
@@ -264,6 +274,14 @@ int main() {
         cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
 
         cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
+        cv::imshow("Tracking Test", display_img);
+
+        std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
+                                " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
+        cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
+        
+        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
+                        0.5, cv::Scalar(255, 255, 0), 1);
         cv::imshow("Tracking Test", display_img);
 
         if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
