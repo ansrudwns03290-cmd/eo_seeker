@@ -112,10 +112,10 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
                             predictedRect.y + predictedRect.height / 2);
     
     cv::Rect searchRoi;
-    searchRoi.width = windowSize;
-    searchRoi.height = windowSize;
-    searchRoi.x = targetCenter.x - windowSize / 2;
-    searchRoi.y = targetCenter.y - windowSize / 2;
+    searchRoi.width = predictedRect.width + windowSize;
+    searchRoi.height = predictedRect.height + windowSize;
+    searchRoi.x = targetCenter.x - searchRoi.width / 2;
+    searchRoi.y = targetCenter.y - searchRoi.height / 2;
 
     // 2. 탐색 창이 화면전체 이미지 경계를 벗어나지 않도록 안전 예외 처리
     cv::Rect imageBounds(0, 0, processedGrayImg.cols, processedGrayImg.rows);
@@ -129,23 +129,26 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
 
     // 4. 잘라낸 영역에서 이진화 수행
     cv::Mat binaryImg;
-    cv::threshold(croppedSearchImg, binaryImg, 70, 255, cv::THRESH_BINARY);
+    cv::threshold(croppedSearchImg, binaryImg, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
 
-    cv::Mat dilate_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_DILATE, dilate_kernel);
-    
+    cv::Mat closing_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_CLOSE, closing_kernel);
+
     // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
     cv::Rect localCandidateBox;
+    static int cnt = 0;
     if (findLargestObject(binaryImg, localCandidateBox)) {
         // 6. crop한 국소 좌표계로 나온 후보 박스를 원래 전체 화면 좌표계로 변환
         outCandidateBox.x = searchRoi.x + localCandidateBox.x;
         outCandidateBox.y = searchRoi.y + localCandidateBox.y;
         outCandidateBox.width = localCandidateBox.width;
         outCandidateBox.height = localCandidateBox.height;
-
+        cv::imwrite("C:/eo_seeker/debug_images/detected_candidate" + std::to_string(cnt++) + ".png", binaryImg); // 디버그용 후보 이미지 저장
+        std::cout << "[Acquisition: Debug] Detected Candidate Box: " << outCandidateBox << std::endl;
+                
         // 7. 가로세로비(Ratio) 3차 검증 검사
         // 모양새가 기존에 등록해둔 전투기 형태와 너무 다르면 가짜 노이즈로 보고 즉시 필터링
         // double currentRatio = static_cast<double>(outCandidateBox.width) / outCandidateBox.height;
