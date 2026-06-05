@@ -134,6 +134,9 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
 
+    cv::Mat dilate_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_DILATE, dilate_kernel);
+    
     // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
     cv::Rect localCandidateBox;
     if (findLargestObject(binaryImg, localCandidateBox)) {
@@ -145,13 +148,13 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
 
         // 7. 가로세로비(Ratio) 3차 검증 검사
         // 모양새가 기존에 등록해둔 전투기 형태와 너무 다르면 가짜 노이즈로 보고 즉시 필터링
-        double currentRatio = static_cast<double>(outCandidateBox.width) / outCandidateBox.height;
-        double ratioError = std::abs(currentRatio - m_targetRatio);
+        // double currentRatio = static_cast<double>(outCandidateBox.width) / outCandidateBox.height;
+        // double ratioError = std::abs(currentRatio - m_targetRatio);
         
-        if (ratioError > 0.5) { // 형상 오차 허용 임계값 (상황에 맞게 조율 가능)
-            std::cout << "[Acquisition: LOST] 후보를 찾았으나 형상비 규격 미달로 기각 (오차: " << ratioError << ")" << std::endl;
-            return false;
-        }
+        // if (ratioError > 0.8) { // 형상 오차 허용 임계값 (상황에 맞게 조율 가능)
+        //     std::cout << "[Acquisition: LOST] 후보를 찾았으나 형상비 규격 미달로 기각 (오차: " << ratioError << ")" << std::endl;
+        //     return false;
+        // }
 
         return true; // 노이즈 관문을 모두 뚫고 올라온 최종 단 하나의 '진짜 심증 후보' 확정
     }
