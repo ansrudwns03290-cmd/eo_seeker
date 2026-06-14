@@ -20,8 +20,9 @@ int main() {
     Tracker tracker;
     StateEstimator state_estimator;
     FsmModule fsm;
-    ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
-
+    // ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
+    ControlCommand control_command(0.00, 0.00, 0.000, 0.000); // 임시
+    
     // 2. 카메라 열기
     if (!video_input.open(0)) {
         std::cerr << "[Error] 카메라를 열 수 없습니다." << std::endl;
@@ -54,10 +55,8 @@ int main() {
             cv::Mat roiImg = initial_processed_img(target_box);
             acq_manager.setTargetModel(roiImg);
 
-            tracker.setTargetDescriptors(acq_manager.getTargetDescriptors()); 
-            tracker.setTargetTemplate(roiImg);
-
-            if (!tracker.init(initial_processed_img, target_box)) {
+            if (!tracker.init(initial_processed_img, target_box,
+                              acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors())) {
                 std::cerr << "[Error] Tracker 초기화 실패!" << std::endl;
                 return -1;
             }
@@ -124,13 +123,20 @@ int main() {
                 target_box = target_box & img_rect;
 
                 // KCF 추적 수행
-                isFound = tracker.update(processed_img, target_box);
+                Tracker::TrackingResult res = tracker.update(processed_img,
+                acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
+                isFound = res.success;
+
                 conf = tracker.getConfidence();
 
                 if (isFound && conf >= 0.40) {
+                    if (res.needTemplateUpdate) {
+                        acq_manager.updateTargetModel(res.newTemplate, res.newDescriptors);
+                    }
+
                     // 추적 성공 시 -> 칼만 필터 보정 및 타겟 박스 확정
-                    cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, 
-                                           target_box.y + target_box.height / 2.0f);
+                    cv::Point2f kcf_center(res.bbox.x + res.bbox.width / 2.0f, 
+                                           res.bbox.y + res.bbox.height / 2.0f);
 
                     estimated_pos = state_estimator.update(kcf_center);
                     estimated_vel = state_estimator.getEstimatedVelocity();
@@ -159,12 +165,15 @@ int main() {
                 // 이진화 윤곽선 매칭을 이용한 고속 후보 탐색
                 cv::Rect candidateBox;
                 
+                std::cout << "DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")" << std::endl;
                 bool foundCandidate = acq_manager.detectCandidateInPredictArea(
                     processed_img,            // 1. 전처리 모듈이 만든 흑백 영상
                     safe_coast_box,           // 2. 칼만이 예측한 안전 영역 사각형
                     fsm.getSearchWindowSize(), // 3. FSM 내부 알고리즘이 결정한 동적 윈도우 크기 (80 또는 160)
                     candidateBox              // 4. [출력] 새로 찾아낸 후보 좌표를 받아올 변수
                 );
+                
+                std::cout << "DEBUG 2: 후보 탐색 결과 = " << (foundCandidate ? "발견" : "미발견") << std::endl;
                 
                 if (foundCandidate) {
                     // 후보 발견된 경우 다음 프레임에 REACQUIRE 상태에서 검증하기 위해 플래그 설정
@@ -187,13 +196,19 @@ int main() {
                 tempBox = tempBox & cv::Rect(0, 0, current_frame.width, current_frame.height); // 이미지 경계 안전 처리
 
                 cv::Mat candidateROI = processed_img(tempBox); // 후보 영역 이미지 조각 추출
+            
+                // 디버깅: 후보 이미지 저장
                 
-                float v_score = tracker.verifyCandidate(candidateROI); // 후보 검증 수행 (KCF 기반)
+                cv::imwrite("C:/eo_seeker/debug_images/candidate_roi_" + std::to_string(current_frame.frame_count) + ".png", candidateROI);
+                std::cout << "후보 이미지 저장" << std::endl;
+                
+                float v_score = tracker.verifyCandidate(candidateROI, acq_manager.getTargetDescriptors(),
+                                                        acq_manager.getTargetTemplate()); // 후보 검증 수행 (KCF 기반)
                 std::cout << "DEBUG: 후보 검증 점수 = " << v_score << std::endl;
 
-                if (v_score >= 0.65f) {
+                if (v_score >= 0.60f) {
                     // 검증 통과 시 추적기 새 위치로 재부팅
-                    tracker.init(current_frame.image, tempBox);
+                    tracker.init(current_frame.image, tempBox, acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
                     
                     state_estimator.update(re_center); // 칼만 필터도 새 위치로 보정
@@ -240,7 +255,7 @@ int main() {
                   << " | [State: " << fsm.getStateString() << "] Conf: " << std::fixed << std::setprecision(2) << conf
                   // << " | TS: " << current_frame.timestamp_ms << "ms" 
                   // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
-                  << "Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
+                  << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
                   << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
                   << " | Tilt: " << servo_cmd.tilt_cmd
                   << std::endl;
@@ -273,8 +288,7 @@ int main() {
         cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
         cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
 
-        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
-        cv::imshow("Tracking Test", display_img);
+            cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
         std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
                                 " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));

@@ -1,6 +1,7 @@
 ﻿#include "acquisition/AcquisitionManager.hpp"
+#include "target_tracking/Tracker.hpp"
 
-AcquisitionManager::AcquisitionManager(){
+AcquisitionManager::AcquisitionManager() {
     // ORB 특징점 추출기 초기화
     m_orb = cv::ORB::create(1000, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
 }
@@ -44,10 +45,12 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
 
         cv::Mat objectOnly = roiImg(actualObjectRect); // roiImg에서 actualObjectRect 위치의 이미지만 반환
         //cv::Mat objectOnly = roiImg(expandedRect); // 확장된 영역으로 ORB 추출
-
+        
+        m_targetTemplate = objectOnly.clone(); // 템플릿 매칭용으로 물체 영역 전체 저장
+        
         m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
-
+        
         m_isFeatureRich = (m_targetKeypoints.size() >= 10);
 
         std::cout << "[Acquisition] Mode: " << (m_isFeatureRich ? "ORB-Rich" : "Template-Only") << std::endl;
@@ -123,44 +126,124 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
 
     if (searchRoi.width <= 0 || searchRoi.height <= 0)  return false;
 
-    // 3. 전체 흑백 프레임에서 탐색 관심 영역만 crop
-    // 복사를 하지 않고 참조 매트릭스를 사용하여 메모리 소모 최소화
     cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
+    
+    // 템플릿 매칭 수행
+    cv::Mat matchResult;
+    cv::Mat currentTemplate = m_targetTemplate.empty() ? cv::Mat(30, 30, CV_8UC1, cv::Scalar(0)) : m_targetTemplate; // 템플릿이 없는 경우 작은 검은 이미지로 대체
+    std::cout << "[DEBUG] Template Type: " << currentTemplate.type() << " | Search Type: " << croppedSearchImg.type() << std::endl;
 
-    // 4. 잘라낸 영역에서 이진화 수행
-    cv::Mat binaryImg;
-    cv::threshold(croppedSearchImg, binaryImg, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::matchTemplate(croppedSearchImg, currentTemplate, matchResult, cv::TM_CCOEFF_NORMED);
 
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
+    double minVal, maxVal;
+    cv::Point maxLoc;
+    cv::minMaxLoc(matchResult, &minVal, &maxVal, NULL, &maxLoc);
 
-    cv::Mat closing_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_CLOSE, closing_kernel);
+    // 임계값 검증
+    const double MATCH_THRESHOLD = 0.6;
+    if (maxVal > MATCH_THRESHOLD) {
+        // 매칭된 최적 위치로 후보 박스 정의
+        cv::Rect bestCandidate(maxLoc.x, maxLoc.y, currentTemplate.cols, currentTemplate.rows);
 
-    // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
-    cv::Rect localCandidateBox;
-    static int cnt = 0;
-    if (findLargestObject(binaryImg, localCandidateBox)) {
-        // 6. crop한 국소 좌표계로 나온 후보 박스를 원래 전체 화면 좌표계로 변환
-        outCandidateBox.x = searchRoi.x + localCandidateBox.x;
-        outCandidateBox.y = searchRoi.y + localCandidateBox.y;
-        outCandidateBox.width = localCandidateBox.width;
-        outCandidateBox.height = localCandidateBox.height;
-        cv::imwrite("C:/eo_seeker/debug_images/detected_candidate" + std::to_string(cnt++) + ".png", binaryImg); // 디버그용 후보 이미지 저장
-        std::cout << "[Acquisition: Debug] Detected Candidate Box: " << outCandidateBox << std::endl;
-                
-        // 7. 가로세로비(Ratio) 3차 검증 검사
-        // 모양새가 기존에 등록해둔 전투기 형태와 너무 다르면 가짜 노이즈로 보고 즉시 필터링
-        // double currentRatio = static_cast<double>(outCandidateBox.width) / outCandidateBox.height;
-        // double ratioError = std::abs(currentRatio - m_targetRatio);
-        
-        // if (ratioError > 0.8) { // 형상 오차 허용 임계값 (상황에 맞게 조율 가능)
-        //     std::cout << "[Acquisition: LOST] 후보를 찾았으나 형상비 규격 미달로 기각 (오차: " << ratioError << ")" << std::endl;
-        //     return false;
-        // }
+        // 정밀 검증 (ORB 특징점 기반)
+        // 매칭 위치의 이미지만 crop하여 특징점 검증
+        cv::Mat candidateROI = croppedSearchImg(bestCandidate);
 
-        return true; // 노이즈 관문을 모두 뚫고 올라온 최종 단 하나의 '진짜 심증 후보' 확정
+        if (verifyCandidateWithORB(candidateROI)) {
+            // 전체 좌표계로 변환
+            outCandidateBox.x = searchRoi.x + bestCandidate.x;
+            outCandidateBox.y = searchRoi.y + bestCandidate.y;
+            outCandidateBox.width = bestCandidate.width;
+            outCandidateBox.height = bestCandidate.height;
+            return true;
+        }
     }
+    // --- 기존 템플릿 매칭으로 후보 찾던 코드 ---
+    // // 3. 전체 흑백 프레임에서 탐색 관심 영역만 crop
+    // // 복사를 하지 않고 참조 매트릭스를 사용하여 메모리 소모 최소화
+    // cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
+
+    // // 4. 잘라낸 영역에서 이진화 수행
+    // cv::Mat binaryImg;
+    // cv::threshold(croppedSearchImg, binaryImg, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    // cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
+
+    // cv::Mat closing_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    // cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_CLOSE, closing_kernel);
+
+    // static int cnt = 0;
+    // cv::imwrite("C:/eo_seeker/debug_images/binary_search_area" + std::to_string(cnt++) + ".jpg", binaryImg); // 디버그용 이진화된 탐색 영역 저장
+    
+    // // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
+    // cv::Rect localCandidateBox;
+    // if (findLargestObject(binaryImg, localCandidateBox)) {
+    //     // 6. crop한 국소 좌표계로 나온 후보 박스를 원래 전체 화면 좌표계로 변환
+    //     outCandidateBox.x = searchRoi.x + localCandidateBox.x;
+    //     outCandidateBox.y = searchRoi.y + localCandidateBox.y;
+    //     outCandidateBox.width = localCandidateBox.width;
+    //     outCandidateBox.height = localCandidateBox.height;
+
+    //     return true; // 노이즈 관문을 모두 뚫고 올라온 최종 단 하나의 '진짜 심증 후보' 확정
+    // }
 
     return false; // 해당 구역 내 물체가 전혀 감지되지 않음
+}
+
+bool AcquisitionManager::verifyCandidateWithORB(const cv::Mat& candidateROI) {
+    if (m_targetDescriptors.empty()) {
+        std::cout << "[Acquisition] No ORB descriptors available for verification." << std::endl;
+        return false;
+    }
+    
+    // 후보 영역에서 특징점 추출
+    std::vector<cv::KeyPoint> candidateKeypoints;
+    cv::Mat candidateDescriptors;
+
+    m_orb->detectAndCompute(candidateROI, cv::noArray(), candidateKeypoints, candidateDescriptors);
+
+    if (candidateDescriptors.empty()) {
+        std::cout << "[Acquisition] No ORB descriptors found in candidate ROI." << std::endl;
+        return false;
+    }
+
+    // 매칭
+    cv::BFMatcher matcher(cv::NORM_HAMMING);
+    std::vector<cv::DMatch> matches;
+    matcher.match(m_targetDescriptors, candidateDescriptors, matches);
+
+    // 거리 기반 필터링
+    double min_dist = 1000.0;
+    for (const auto& m : matches) {
+        if (m.distance < min_dist) min_dist = m.distance;
+    }
+
+    // 통계적 유의미한 매칭 개수 카운트
+    int good_matches = 0;
+    for (const auto& m : matches) {
+        if(m.distance <= std::max(2.0 * min_dist, 30.0)) {
+            good_matches++;
+        }
+    }
+
+    return (good_matches >= 5);
+}
+
+void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv::Mat& newDescriptors) {
+    if (newTemplate.empty() || newDescriptors.empty()) {
+        std::cerr << "[Acquisition] Warning: Attempting to update target model with empty template or descriptors." << std::endl;
+        return;
+    }
+    
+    cv::Mat grayTemplate;
+    if (newTemplate.channels() == 3) {
+        cv::cvtColor(newTemplate, grayTemplate, cv::COLOR_BGR2GRAY);
+    } else {
+        grayTemplate = newTemplate;
+    }
+
+    m_targetTemplate = grayTemplate;
+    m_targetDescriptors = newDescriptors.clone();
+    std::cout << "[Acquisition] Target model updated with new template and descriptors." << std::endl;
 }

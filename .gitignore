@@ -10,4 +10,4 @@
 # 빌드 폴더 무시
 build/
 .vscode/
-.debug_images/
+debug_images/

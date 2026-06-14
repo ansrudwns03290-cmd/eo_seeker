@@ -127,7 +127,7 @@ void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool 
             // 무거운 ORB/NCC 매칭 연산을 호출합니다.
             float verificationScore = currentConfidence; // 예시 합격 점수
 
-            if (verificationScore >= 0.65) {
+            if (verificationScore >= 0.60) {
                 std::cout << "[FSM Success] 표적 검증 통과! TRACK 상태로 복귀합니다." << std::endl;
                 m_targetBox = m_temporaryBox; // 정답 좌표 확정
                 m_lowConfidenceCounter = 0;   // 카운터 초기화

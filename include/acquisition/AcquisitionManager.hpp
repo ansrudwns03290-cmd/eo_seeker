@@ -26,6 +26,11 @@ public:
      * @return cv::Mat 타입의 기술자 행렬
      */
     cv::Mat getTargetDescriptors() const { return m_targetDescriptors; }
+    cv::Mat getTargetTemplate() const { return m_targetTemplate; }
+
+    bool verifyCandidateWithORB(const cv::Mat& candidateROI);
+
+    void updateTargetModel(const cv::Mat& newTemplate, const cv::Mat& newDescriptors);
 
 private:
     bool findLargestObject(const cv::Mat& binaryImg, cv::Rect& outRect);
@@ -36,5 +41,6 @@ private:
     // ORB 특징점 매칭 관련 (표적의 '몽타주' 데이터)
     cv::Ptr<cv::ORB> m_orb;
     cv::Mat m_targetDescriptors;
+    cv::Mat m_targetTemplate;
     std::vector<cv::KeyPoint> m_targetKeypoints;
 };
