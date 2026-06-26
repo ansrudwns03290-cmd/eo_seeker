@@ -158,35 +158,6 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
             return true;
         }
     }
-    // --- 기존 템플릿 매칭으로 후보 찾던 코드 ---
-    // // 3. 전체 흑백 프레임에서 탐색 관심 영역만 crop
-    // // 복사를 하지 않고 참조 매트릭스를 사용하여 메모리 소모 최소화
-    // cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
-
-    // // 4. 잘라낸 영역에서 이진화 수행
-    // cv::Mat binaryImg;
-    // cv::threshold(croppedSearchImg, binaryImg, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-
-    // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    // cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_OPEN, kernel);
-
-    // cv::Mat closing_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    // cv::morphologyEx(binaryImg, binaryImg, cv::MORPH_CLOSE, closing_kernel);
-
-    // static int cnt = 0;
-    // cv::imwrite("C:/eo_seeker/debug_images/binary_search_area" + std::to_string(cnt++) + ".jpg", binaryImg); // 디버그용 이진화된 탐색 영역 저장
-    
-    // // 5. 이진화된 탐색 영역에서 가장 큰 물체의 bbox 탐색
-    // cv::Rect localCandidateBox;
-    // if (findLargestObject(binaryImg, localCandidateBox)) {
-    //     // 6. crop한 국소 좌표계로 나온 후보 박스를 원래 전체 화면 좌표계로 변환
-    //     outCandidateBox.x = searchRoi.x + localCandidateBox.x;
-    //     outCandidateBox.y = searchRoi.y + localCandidateBox.y;
-    //     outCandidateBox.width = localCandidateBox.width;
-    //     outCandidateBox.height = localCandidateBox.height;
-
-    //     return true; // 노이즈 관문을 모두 뚫고 올라온 최종 단 하나의 '진짜 심증 후보' 확정
-    // }
 
     return false; // 해당 구역 내 물체가 전혀 감지되지 않음
 }

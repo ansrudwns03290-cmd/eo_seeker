@@ -92,11 +92,13 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
  * @return 추적 성공 여부
  */
 Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& refTemplate, const cv::Mat& refDescriptors) {
+    // 1. 결과 데이터 구조체 초기화
     TrackingResult result;
     result.needTemplateUpdate = false;
     result.success = false;
     result.bbox = cv::Rect(0, 0, 0, 0);
 
+    // 2. 초기화 상태 및 프레임 유효성 검사
     if (!m_isInitialized || frame.empty()) {
         return result;
     }
@@ -104,14 +106,12 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     cv::Mat workingFrame = frame.clone();
     cv::Rect virtualBbox;
 
-    // 최초 등록 시 표적이 작아 업스케일링 했는지 검사
-    // m_lastBbox의 원본 가로 크기가 60 미만이었다면, 매 프레임 이미지 키우는 기법 적용
+    // 3. 적응형 해상도 스케일링 (Small Target 처리)
+    // 표적이 작을 경우(60px 미만) 2배 확대하여 추적 성능을 높이는 모드 적용
     bool isUpscaledMode = (m_lastBbox.width < 60);
 
     if (isUpscaledMode) {
-        // 현재 들어온 640x480 프레임을 2배 확대
         cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
-        
         virtualBbox = m_lastBbox;
         virtualBbox.x *= 2;
         virtualBbox.y *= 2;
@@ -121,8 +121,7 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         virtualBbox = m_lastBbox;
     }
     
-    // [핵심 안전장치]: 크기 변환(resize)이 완전히 끝난 1채널 최종 데이터를 
-    // KCF 트래커 규격에 맞춰 3채널 포맷으로 복제 래핑합니다.
+    // 4. 추적기 입력 포맷 정합 (KCF의 경우 3채널 입력 필요)
     cv::Mat kcfInputFrame;
     if (workingFrame.channels() == 1) {
         cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
@@ -130,59 +129,57 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         kcfInputFrame = workingFrame;
     }
 
-    // 3. update 함수는 추적 성공 여부를 bool로 반환합니다.
+    // 5. KCF 추적 엔진 수행 (핵심 추적)
     bool success = m_tracker->update(kcfInputFrame, virtualBbox);
     result.success = success;
 
     if (success) {
+        // 6. 좌표계 복원 (스케일링 모드였다면 원본 해상도로 환산)
         cv::Rect outBbox;
-        m_frameCount++; // 프레임 카운터 증가
+        m_frameCount++; 
         
         if (isUpscaledMode) {
-            // KCF가 2배 확대된 이미지에서 찾은 좌표를 원래 크기로 보정
             outBbox.x = virtualBbox.x / 2;
             outBbox.y = virtualBbox.y / 2;
             outBbox.width = virtualBbox.width / 2;
             outBbox.height = virtualBbox.height / 2;
-        } else{
-            outBbox = virtualBbox; // 원래 크기에서 찾은 좌표 그대로 사용
+        } else {
+            outBbox = virtualBbox;
         }
 
         result.bbox = outBbox;
         
-        // 2. 현재 추적된 영역에서 신뢰도 검증 (ROI 안전 처리 포함)
+        // 7. 추적 신뢰도 평가 및 모델 갱신 로직 (주기적 수행)
         cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, frame.cols, frame.rows);
         
         if (safeRoi.width > 0 && safeRoi.height > 0) {
             cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
-
+            
+            // a. 현재 추적 위치의 신뢰도 계산
             m_confidence = verifyTarget(currentROI, refTemplate, refDescriptors);
 
-            if(m_frameCount % 30 == 0) { 
+            // b. 30프레임 주기마다 수행하는 정밀 모델 검증 및 업데이트
+            if (m_frameCount % 30 == 0) { 
                 cv::Mat grayROI;
                 
-                // 1. 만약 currentROI가 3채널 컬러라면, 안전하게 1채널 흑백으로 강제 변환합니다.
+                // 1) 전처리: 템플릿 갱신을 위한 흑백 변환
                 if (currentROI.channels() == 3) {
                     cv::cvtColor(currentROI, grayROI, cv::COLOR_BGR2GRAY);
                 } else {
-                    // 이미 1채널이라면, 주소 링크를 끊기 위해 반드시 깊은 복사(.clone())를 수행합니다.
                     grayROI = currentROI.clone(); 
                 }
 
-                // 2. 완벽하게 격리된 1채널 흑백 이미지(grayROI)를 주입하므로 절대 멈추지 않습니다.
+                // 2) 이진화 및 노이즈 제거
                 cv::Mat binImg;
-                cv::threshold(grayROI, binImg, 70, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);               
-                
-                // 모폴로지 연산으로 잔먼지 제거
+                cv::threshold(grayROI, binImg, 70, 255, cv::THRESH_BINARY | cv::THRESH_OTSU); 
                 cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
                 cv::morphologyEx(binImg, binImg, cv::MORPH_OPEN, kernel);
 
-                // 윤곽선 추출
+                // 3) 외곽선 기반 표적 실측
                 std::vector<std::vector<cv::Point>> contours;
                 cv::findContours(binImg, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
                 int maxObjectWidth = 0;
-
                 cv::Rect maxContourBox = cv::Rect(0, 0, 0, 0);
 
                 for (const auto& contour : contours) {
@@ -193,14 +190,12 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                     }
                 }
 
-                // 잡음 때문에 실측 실패하면 안전장치로 outBbox라도 백업
-                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth; // 원본 크기로 환산    
-                if (currentOriginalWidth <= 0) {
-                    currentOriginalWidth = outBbox.width;
-                }
-       
-                if (m_confidence >0.6f) {
-                    // 표적의 실제 크기를 기반으로 추적기 스위칭 판단
+                // 4) 표적 크기 기반 모드 스위칭 (Adaptive Mode Management)
+                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth; 
+                if (currentOriginalWidth <= 0) currentOriginalWidth = outBbox.width;
+        
+                if (m_confidence > 0.6f) {
+                    // 표적 커지면 원본 모드로, 작아지면 업스케일 모드로 전환
                     if (isUpscaledMode && currentOriginalWidth >= 75) {
                         std::cout << "[Tracker] 표적 크기 75px 도달! 원본 모드로 전환" << std::endl;
                         reinitTracker(frame, outBbox, 1.0f);
@@ -210,6 +205,7 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                         reinitTracker(frame, outBbox, 2.0f);
                     }
                     else {
+                        // 5) 안정적인 추적 중이면 템플릿/특징점 갱신 Trigger
                         std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
                     
                         cv::Mat newTemplate;
@@ -220,31 +216,30 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                             newTemplate = currentROI.clone();
                         }
 
+                        // ORB 특징점 재추출
                         std::vector<cv::KeyPoint> kp;
                         cv::Mat newDescriptors;
                         m_orb->detectAndCompute(currentROI, cv::noArray(), kp, newDescriptors);
                         
-                        std::string filename = "C:/eo_seeker/debug_images/updated_template" + std::to_string(m_frameCount) + ".png";
-                        cv::imwrite(filename, currentROI); // 디버그용 현재 ROI 이미지 저장
-
+                        // 결과 구조체에 업데이트 정보 할당
                         result.needTemplateUpdate = true;
                         result.newTemplate = newTemplate;
                         result.newKeypoints = kp;
                         result.newDescriptors = newDescriptors;
 
                         std::cout << "[Tracker] Template Update Triggered. New ORB Keypoints: " << kp.size() << std::endl;
-                        }
+                    }
                 }
             }
-            // 실시간 신뢰도 평가 점수 계산
         } else {
-            m_confidence = 0.0f; // 안전한 ROI가 없으면 신뢰도 0으로 간주
+            m_confidence = 0.0f; // ROI 확보 실패 시 신뢰도 0
         }
 
-        m_lastBbox = outBbox; // 마지막 성공한 위치 업데이트
+        m_lastBbox = outBbox; // 최종 추적 성공 위치 업데이트
     } else {
+        // 8. 추적 실패 처리
         m_confidence = 0.0f;
-        m_isInitialized = false; // 추적 실패 시 초기화 상태 해제 (재획득 유도)
+        m_isInitialized = false; // 추적기 초기화 상태 해제 (상위 FSM에 재획득 유도)
         std::cout << "[Tracker] Target LOST" << std::endl;
     }
 

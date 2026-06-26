@@ -20,8 +20,8 @@ int main() {
     Tracker tracker;
     StateEstimator state_estimator;
     FsmModule fsm;
-    // ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
-    ControlCommand control_command(0.00, 0.00, 0.000, 0.000); // 임시
+    ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
+    // ControlCommand control_command(0.00, 0.00, 0.000, 0.000); // 임시
     
     // 2. 카메라 열기
     if (!video_input.open(0)) {
@@ -69,6 +69,7 @@ int main() {
             fsm.forceSetState(FSMState::TRACK); // 초기 상태 설정
 
             std::cout << "[Init] Target & Tracker Registered!" << std::endl;
+            std::cout << "Initial Target Box size: " << target_box.width << " x " << target_box.height << std::endl;
         }
     } else {
         std::cout << "[Error] 초기 프레임을 읽어올 수 없습니다." << std::endl;
@@ -114,14 +115,6 @@ int main() {
         switch (fsm.getCurrentState()) {
             
             case FSMState::TRACK: {
-                // KCF를 구동하기 전에, target_box의 중심점을 칼만이 예측한 물리적 위치로 강제 이동시킵니다.
-                target_box.x = predicted_pos.x - target_box.width / 2.0f;
-                target_box.y = predicted_pos.y - target_box.height / 2.0f;
-                
-                // 이미지 경계 안전 처리 (화면 밖으로 나가는 것 방지)
-                cv::Rect img_rect(0, 0, current_frame.width, current_frame.height);
-                target_box = target_box & img_rect;
-
                 // KCF 추적 수행
                 Tracker::TrackingResult res = tracker.update(processed_img,
                 acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
@@ -275,6 +268,7 @@ int main() {
         
         // --- 실시간 모니터링 그래픽 시각화 ---
         cv::Rect final_draw_box = fsm.getTargetBox();
+        std::cout << "FSM Box -> X: " << final_draw_box.x << ", Y: " << final_draw_box.y << std::endl;
         if (fsm.getCurrentState() == FSMState::TRACK) {
             cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
             cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
