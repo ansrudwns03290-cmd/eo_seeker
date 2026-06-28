@@ -73,6 +73,9 @@ void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool 
         }
 
         case FSMState::TRACK: {
+            m_confHistory.push_back(currentConfidence);
+            if(m_confHistory.size() > 10) m_confHistory.pop_front();
+
             if (kcfSuccess && currentConfidence >= 0.40) {
                 // 정상 추적 상태 유지
                 m_lowConfidenceCounter = 0; 
@@ -86,12 +89,26 @@ void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool 
                 if (m_lowConfidenceCounter >= 5) {
                     m_lostStartTime = currentFrame.timestamp_ms; // 골든타임 타이머 시동
                     
+                    //LOST 원인 로그 출력
+                    std::cout << "[FSM LOST Cause] KCF Success: " << (kcfSuccess ? "True" : "False") 
+                              << "| Last Conf: " << currentConfidence
+                              << "| Low Conf Count: " << m_lowConfidenceCounter << std::endl;
+
+                    std::cout << "[FSM LOST History] Recent confidence: ";
+                    for (float c : m_confHistory) {
+                        std::cout << c << " ";
+                    }
+                    std::cout << std::endl;
+
                     // 칼만 필터에서 넘어온 속도 벡터의 크기 계산
                     // sqrt(vx^2 + vy^2)
                     double targetSpeed = std::sqrt(currentVelocity.x * currentVelocity.x +
                          currentVelocity.y * currentVelocity.y);
                     m_isHighSpeedLoss = (targetSpeed >= 15.0);
-                    
+    
+                    std::cout << "[FSM LOST Caouse] Target Speed" << targetSpeed
+                                << (m_isHighSpeedLoss ? " (High-Speed Loss)" : " (Normal Loss)") << std::endl;
+
                     nextState = FSMState::LOST;
                 }
             }

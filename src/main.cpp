@@ -236,7 +236,7 @@ int main() {
             if (current_frame.frame_count % 10 == 0) {
                 std::cout << "Frame: " << current_frame.frame_count
                   << " | [Tracking] Conf: " << std::fixed << std::setprecision(2) << conf
-                  // << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  << " | TS: " << current_frame.timestamp_ms << "ms" 
                   // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
                   << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
                   << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
@@ -246,7 +246,7 @@ int main() {
         } else {
             std::cout << "Frame: " << current_frame.frame_count
                   << " | [State: " << fsm.getStateString() << "] Conf: " << std::fixed << std::setprecision(2) << conf
-                  // << " | TS: " << current_frame.timestamp_ms << "ms" 
+                  << " | TS: " << current_frame.timestamp_ms << "ms" 
                   // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
                   << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
                   << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
