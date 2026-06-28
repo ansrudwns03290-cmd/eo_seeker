@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <cstdint>
 #include <string>
+#include <deque>
 #include "common/Frame.hpp"
 
 // 시스템의 4가지 핵심 상태 정의
@@ -50,7 +51,8 @@ private:
     FSMState m_currentState;    // 현재 시스템 상태
     cv::Rect m_targetBox;       // FSM이 보증하는 최종 표적 좌표
     cv::Rect m_temporaryBox;    // REACQUIRE 상태에서 정밀 검증할 임시 후보 박스
-
+    std::deque<float> m_confHistory; // 최근 N프레임 신뢰도 기록 (LOST 상태 판단용)
+    
     // 타이머 및 누적 카운터 변수
     int64_t m_lostStartTime;    // LOST 상태에 진입한 최초 시점의 타임스탬프 (ms)
     int m_lowConfidenceCounter; // TRACK 상태에서 신뢰도 저하 누적 프레임 카운터

@@ -49,10 +49,34 @@ ServoCommand ControlCommand::calculateCommand(double target_x, double target_y, 
     prev_error_x_ = error_x;
     prev_error_y_ = error_y;
 
+    double raw_pan = current_pan_angle;
+    double raw_tilt = current_tilt_angle;
+
     // 오차 보정량 계산 (화면 중심 오차를 상쇄하기 위한 변위 연산)
     cmd.pan_cmd  = clamp(current_pan_angle, min_pan_angle_, max_pan_angle_);
     cmd.tilt_cmd = clamp(current_tilt_angle, min_tilt_angle_, max_tilt_angle_);
 
+    // 한계 도달 여부 판단
+    bool pan_at_limit  = (raw_pan  != cmd.pan_cmd);
+    bool tilt_at_limit = (raw_tilt != cmd.tilt_cmd);
+
+    // 상태 변화 시에만 출력 (매 프레임 출력 방지)
+    static bool prev_pan_limit  = false;
+    static bool prev_tilt_limit = false;
+
+    if (pan_at_limit && !prev_pan_limit)
+        std::cout << "[Servo WARNING] Pan 한계 도달: " << cmd.pan_cmd << "°" << std::endl;
+    if (!pan_at_limit && prev_pan_limit)
+        std::cout << "[Servo] Pan 한계 해제" << std::endl;
+
+    if (tilt_at_limit && !prev_tilt_limit)
+        std::cout << "[Servo WARNING] Tilt 한계 도달: " << cmd.tilt_cmd << "°" << std::endl;
+    if (!tilt_at_limit && prev_tilt_limit)
+        std::cout << "[Servo] Tilt 한계 해제" << std::endl;
+
+    prev_pan_limit  = pan_at_limit;
+    prev_tilt_limit = tilt_at_limit;
+    
     current_pan_angle = cmd.pan_cmd;
     current_tilt_angle = cmd.tilt_cmd;
 
