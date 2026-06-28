@@ -150,7 +150,11 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
     cv::Rect imageBounds(0, 0, processedGrayImg.cols, processedGrayImg.rows);
     searchRoi = searchRoi & imageBounds;
 
-    if (searchRoi.width <= 0 || searchRoi.height <= 0)  return false;
+    if (searchRoi.width <= 0 || searchRoi.height <= 0) {
+        std::cout << "[Acquisition LOST] 탐색 영역이 화면 밖. searchRoi: "
+                    << searchRoi << std::endl;
+        return false;
+    }
 
     cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
     // cv::imwrite("C:/eo_seeker/debug_images/cropped_search_area.png", croppedSearchImg); // 디버그용 후보 이미지 저장
@@ -189,6 +193,9 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
         }
     }
 
+    std::cout << "[Acquisition LOST] NCC 최고 점수: " << maxVal
+                << ", Threshold: " << MATCH_THRESHOLD  << std::endl;
+    
     return false; // 해당 구역 내 물체가 전혀 감지되지 않음
 }
 
@@ -227,6 +234,9 @@ bool AcquisitionManager::verifyCandidateWithORB(const cv::Mat& candidateROI) {
             good_matches++;
         }
     }
+
+    std::cout << "[Acquisition LOST] ORB 검증 실패. Good matches: " << good_matches
+                << ", Threshold: 5" << std::endl;
 
     return (good_matches >= 5);
 }
