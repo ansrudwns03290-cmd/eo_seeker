@@ -78,6 +78,19 @@ int main() {
 
     // 2. 루프 시작
     double last_timestamp_ms = current_frame.timestamp_ms;
+    double session_start_ms  = current_frame.timestamp_ms; // 상대 시각 기준점
+
+    // 세션 통계 변수
+    int   stat_track_frames      = 0;
+    int   stat_lost_count        = 0;
+    int   stat_reacquire_success = 0;
+    int   stat_reacquire_fail    = 0;
+    FSMState prev_fsm_state      = FSMState::TRACK;
+
+    // FPS 계산용
+    double  current_fps  = 0.0;
+    int64_t fps_ref_ts   = static_cast<int64_t>(session_start_ms);
+
     cv::Point2f estimated_pos(0, 0);
     cv::Point2f estimated_vel(0,0);
 
@@ -200,6 +213,7 @@ int main() {
                 std::cout << "DEBUG: 후보 검증 점수 = " << v_score << std::endl;
 
                 if (v_score >= 0.60f) {
+                    stat_reacquire_success++;
                     // 검증 통과 시 추적기 새 위치로 재부팅
                     tracker.init(current_frame.image, tempBox, acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
@@ -211,6 +225,7 @@ int main() {
                     isFound = true;
                     conf = v_score;
                 }else {
+                    stat_reacquire_fail++;
                     // 노이즈인 경우 FSM이 다음 프레임에서 SEARCH로 전이되도록 유도
                     isFound = false;
                     conf = 0.0f;
@@ -227,17 +242,30 @@ int main() {
         }
 
         fsm.update(current_frame, conf, isFound, estimated_vel); // FSM 상태 업데이트 (매 프레임마다 현재 프레임의 추적 성공 여부와 신뢰도 점수를 전달)
-    
+
+        // 세션 통계 수집
+        if (fsm.getCurrentState() == FSMState::TRACK) stat_track_frames++;
+        if (prev_fsm_state == FSMState::TRACK && fsm.getCurrentState() == FSMState::LOST) stat_lost_count++;
+        prev_fsm_state = fsm.getCurrentState();
+
         // 제어 명령 생성 모듈 구동
         // 칼만 필터가 산출한 정밀 최적 중심 위치와 현재 시스템 상태 문자열 주입
         ServoCommand servo_cmd = control_command.calculateCommand(estimated_pos.x, estimated_pos.y, fsm.getStateString());
         
+        // FPS 계산 (10프레임마다 갱신)
+        if (current_frame.frame_count % 10 == 0) {
+            double elapsed_10f = (current_frame.timestamp_ms - fps_ref_ts) / 1000.0;
+            current_fps = (elapsed_10f > 0.0) ? (10.0 / elapsed_10f) : 0.0;
+            fps_ref_ts  = static_cast<int64_t>(current_frame.timestamp_ms);
+        }
+        double rel_ts = current_frame.timestamp_ms - session_start_ms;
+
         if (fsm.getCurrentState() == FSMState::TRACK) {
             if (current_frame.frame_count % 10 == 0) {
                 std::cout << "Frame: " << current_frame.frame_count
                   << " | [Tracking] Conf: " << std::fixed << std::setprecision(2) << conf
-                  << " | TS: " << current_frame.timestamp_ms << "ms" 
-                  // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << " | FPS: " << std::fixed << std::setprecision(1) << current_fps
+                  << " | TS: " << static_cast<int>(rel_ts) << "ms"
                   << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
                   << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
                   << " | Tilt: " << servo_cmd.tilt_cmd
@@ -246,8 +274,7 @@ int main() {
         } else {
             std::cout << "Frame: " << current_frame.frame_count
                   << " | [State: " << fsm.getStateString() << "] Conf: " << std::fixed << std::setprecision(2) << conf
-                  << " | TS: " << current_frame.timestamp_ms << "ms" 
-                  // << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
+                  << " | TS: " << static_cast<int>(rel_ts) << "ms"
                   << " | Target Pos: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")"
                   << " | [Servo Cmd] Pan: " << std::fixed << std::setprecision(2) << servo_cmd.pan_cmd
                   << " | Tilt: " << servo_cmd.tilt_cmd
@@ -295,6 +322,22 @@ int main() {
     }
 
 CORE_LOOP_EXIT:
+    {
+        double elapsed_sec = (last_timestamp_ms - session_start_ms) / 1000.0;
+        int    total_frames = current_frame.frame_count;
+        double avg_fps      = (elapsed_sec > 0.0) ? (total_frames / elapsed_sec) : 0.0;
+        double track_rate   = (total_frames > 0)  ? (100.0 * stat_track_frames / total_frames) : 0.0;
+
+        std::cout << "\n===== 세션 요약 =====" << std::endl;
+        std::cout << "총 프레임    : " << total_frames << "프레임" << std::endl;
+        std::cout << "총 경과 시간 : " << std::fixed << std::setprecision(1) << elapsed_sec << "s" << std::endl;
+        std::cout << "평균 FPS     : " << std::fixed << std::setprecision(1) << avg_fps << std::endl;
+        std::cout << "추적 성공률  : " << std::fixed << std::setprecision(1) << track_rate << "%" << std::endl;
+        std::cout << "LOST 발생    : " << stat_lost_count << "회" << std::endl;
+        std::cout << "재획득 성공  : " << stat_reacquire_success << "회" << std::endl;
+        std::cout << "재획득 실패  : " << stat_reacquire_fail    << "회" << std::endl;
+        std::cout << "=====================" << std::endl;
+    }
     std::cout << "[System] 루프 종료" << std::endl;
     video_input.release();
     cv::destroyAllWindows();
