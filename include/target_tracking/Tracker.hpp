@@ -51,7 +51,7 @@ public:
      */
     TrackingResult reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor);
 
-    float Tracker::verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDescriptors, const cv::Mat& refTemplate); 
+    float verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDescriptors, const cv::Mat& refTemplate); 
 
 private:
     cv::Ptr<cv::Tracker> m_tracker; // 추적기 객체 포인터

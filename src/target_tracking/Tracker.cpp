@@ -150,7 +150,8 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         result.bbox = outBbox;
         
         // 7. 추적 신뢰도 평가 및 모델 갱신 로직 (주기적 수행)
-        cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        // 수정
+        cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, kcfInputFrame.cols, kcfInputFrame.rows);
         
         if (safeRoi.width > 0 && safeRoi.height > 0) {
             cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
@@ -198,11 +199,15 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                     // 표적 커지면 원본 모드로, 작아지면 업스케일 모드로 전환
                     if (isUpscaledMode && currentOriginalWidth >= 75) {
                         std::cout << "[Tracker] 표적 크기 75px 도달! 원본 모드로 전환" << std::endl;
-                        reinitTracker(frame, outBbox, 1.0f);
+                        result = reinitTracker(frame, outBbox, 1.0f);
+                        result.bbox = outBbox;
+                        result.success = true;
                     }
                     else if (!isUpscaledMode && currentOriginalWidth < 50) {
                         std::cout << "[Tracker] 표적 크기 50px 미만! 업스케일 모드로 전환" << std::endl;
-                        reinitTracker(frame, outBbox, 2.0f);
+                        result = reinitTracker(frame, outBbox, 2.0f);
+                        result.bbox = outBbox;
+                        result.success = true;
                     }
                     else {
                         // 5) 안정적인 추적 중이면 템플릿/특징점 갱신 Trigger
@@ -324,8 +329,8 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
 
     static int cnt = 0;
     cv::matchTemplate(resizedROI, refTemplate, res, cv::TM_CCOEFF_NORMED);
-    cv::imwrite("C:/eo_seeker/debug_images/resized_roi" + std::to_string(cnt++) + ".png", resizedROI); // 디버그용 후보 이미지 저장
-    cv::imwrite("C:/eo_seeker/debug_images/target_template" + std::to_string(cnt) + ".png", refTemplate); // 디버그용 후보 이미지 저장
+    // cv::imwrite("C:/eo_seeker/debug_images/resized_roi" + std::to_string(cnt++) + ".png", resizedROI); // 디버그용 후보 이미지 저장
+    // cv::imwrite("C:/eo_seeker/debug_images/target_template" + std::to_string(cnt) + ".png", refTemplate); // 디버그용 후보 이미지 저장
         
     double minVal, maxVal;
     cv::minMaxLoc(res, &minVal, &maxVal);

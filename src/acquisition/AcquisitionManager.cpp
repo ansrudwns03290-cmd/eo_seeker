@@ -41,6 +41,7 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         std::cout << "[Acquisition] Mode: " << (m_isFeatureRich ? "ORB-Rich" : "Template-Only") << std::endl;
     } else {
         // 물체 분리 실패 시 박스 전체 사용
+        m_targetTemplate = buildTemplate(roiImg); // gray 변환만 수행
         m_orb->detectAndCompute(roiImg, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(roiImg.cols) / roiImg.rows;
         std::cout << "[Acquisition] Target Registered (Box Mode)" << std::endl;
@@ -147,7 +148,8 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
     if (searchRoi.width <= 0 || searchRoi.height <= 0)  return false;
 
     cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
-    
+    // cv::imwrite("C:/eo_seeker/debug_images/cropped_search_area.png", croppedSearchImg); // 디버그용 후보 이미지 저장
+
     // 템플릿 매칭 수행
     cv::Mat matchResult;
     cv::Mat currentTemplate = m_targetTemplate; // 템플릿이 없는 경우 작은 검은 이미지로 대체
@@ -155,7 +157,6 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
         std::cout << "[DEBUG] Warning: Target template is empty. Using placeholder for matching." << std::endl;
         return false;
     }
-    std::cout << "[DEBUG] Template Type: " << currentTemplate.type() << " | Search Type: " << croppedSearchImg.type() << std::endl;
 
     cv::matchTemplate(croppedSearchImg, currentTemplate, matchResult, cv::TM_CCOEFF_NORMED);
 
