@@ -45,9 +45,16 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
 
         cv::Mat objectOnly = roiImg(actualObjectRect); // roiImg에서 actualObjectRect 위치의 이미지만 반환
         //cv::Mat objectOnly = roiImg(expandedRect); // 확장된 영역으로 ORB 추출
-        
         m_targetTemplate = objectOnly.clone(); // 템플릿 매칭용으로 물체 영역 전체 저장
-        
+
+        cv::Mat m_grayTemplate;
+        if (m_targetTemplate.channels() == 3) {
+            cv::cvtColor(m_targetTemplate, m_grayTemplate, cv::COLOR_BGR2GRAY);
+        } else {
+            m_grayTemplate = m_targetTemplate;
+        }
+        m_targetTemplate = m_grayTemplate;
+
         m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
         
@@ -61,7 +68,6 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         std::cout << "[Acquisition] Target Registered (Box Mode)" << std::endl;
     }
 
-    m_orb->detectAndCompute(roiImg(actualObjectRect), cv::noArray(), m_targetKeypoints, m_targetDescriptors);
     std::cout << "[Acquisition: Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
 }
 
@@ -130,7 +136,11 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
     
     // 템플릿 매칭 수행
     cv::Mat matchResult;
-    cv::Mat currentTemplate = m_targetTemplate.empty() ? cv::Mat(30, 30, CV_8UC1, cv::Scalar(0)) : m_targetTemplate; // 템플릿이 없는 경우 작은 검은 이미지로 대체
+    cv::Mat currentTemplate = m_targetTemplate; // 템플릿이 없는 경우 작은 검은 이미지로 대체
+    if(m_targetTemplate.empty()) {
+        std::cout << "[DEBUG] Warning: Target template is empty. Using placeholder for matching." << std::endl;
+        return false;
+    }
     std::cout << "[DEBUG] Template Type: " << currentTemplate.type() << " | Search Type: " << croppedSearchImg.type() << std::endl;
 
     cv::matchTemplate(croppedSearchImg, currentTemplate, matchResult, cv::TM_CCOEFF_NORMED);
