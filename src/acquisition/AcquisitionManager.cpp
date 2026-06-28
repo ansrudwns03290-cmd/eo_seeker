@@ -33,7 +33,12 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         cv::Mat objectOnly = roiImg(actualObjectRect);
         m_targetTemplate = buildTemplate(roiImg, actualObjectRect); // 크기 기반 패딩 적용 + gray 변환
 
-        m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
+        cv::Mat objectGray;
+        if (objectOnly.channels() == 3)
+            cv::cvtColor(objectOnly, objectGray, cv::COLOR_BGR2GRAY);
+        else
+            objectGray = objectOnly;
+        m_orb->detectAndCompute(objectGray, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
         
         m_isFeatureRich = (m_targetKeypoints.size() >= 10);
