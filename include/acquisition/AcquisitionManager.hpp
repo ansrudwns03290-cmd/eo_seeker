@@ -34,6 +34,15 @@ public:
 
 private:
     bool findLargestObject(const cv::Mat& binaryImg, cv::Rect& outRect);
+
+    /**
+     * @brief 표적 크기에 따라 패딩을 적용한 템플릿 이미지를 생성 (gray 변환 포함)
+     * @param sourceImg 템플릿을 잘라낼 원본 이미지
+     * @param objectRect 표적의 실제 박스 좌표
+     * @return gray 변환된 템플릿 이미지
+     */
+    cv::Mat buildTemplate(const cv::Mat& sourceImg, const cv::Rect& objectRect);
+    cv::Mat buildTemplate(const cv::Mat& croppedImg); // 이미 crop된 이미지에서 gray 변환만 수행 (updateTargetModel용)
     bool m_isFeatureRich = false; // 특징점이 충분히 추출되었는지 여부
 
     double m_targetRatio = 1.0; // 재획득 시 필터링을 위한 가로세로비

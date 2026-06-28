@@ -30,30 +30,8 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     // 2. 물체 윤곽선 추출 및 정밀 모델링
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
-        // 너무 작게 잘리지 않도록 padding 추가
-        int padding;
-        if (actualObjectRect.width < 40 || actualObjectRect.height < 40) {
-            padding = 10; // 작은 물체는 특징점 확보를 위해 패딩을 넉넉히
-        } else {
-            padding = 5;  // 큰 물체는 정밀도를 위해 패딩을 작게
-        }
-        cv::Rect expandedRect = actualObjectRect;
-        expandedRect.x = std::max(0, actualObjectRect.x - padding);
-        expandedRect.y = std::max(0, actualObjectRect.y - padding);
-        expandedRect.width = std::min(roiImg.cols - expandedRect.x, actualObjectRect.width + padding * 2);
-        expandedRect.height = std::min(roiImg.rows - expandedRect.y, actualObjectRect.height + padding * 2);
-
-        cv::Mat objectOnly = roiImg(actualObjectRect); // roiImg에서 actualObjectRect 위치의 이미지만 반환
-        //cv::Mat objectOnly = roiImg(expandedRect); // 확장된 영역으로 ORB 추출
-        m_targetTemplate = objectOnly.clone(); // 템플릿 매칭용으로 물체 영역 전체 저장
-
-        cv::Mat m_grayTemplate;
-        if (m_targetTemplate.channels() == 3) {
-            cv::cvtColor(m_targetTemplate, m_grayTemplate, cv::COLOR_BGR2GRAY);
-        } else {
-            m_grayTemplate = m_targetTemplate;
-        }
-        m_targetTemplate = m_grayTemplate;
+        cv::Mat objectOnly = roiImg(actualObjectRect);
+        m_targetTemplate = buildTemplate(roiImg, actualObjectRect); // 크기 기반 패딩 적용 + gray 변환
 
         m_orb->detectAndCompute(objectOnly, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
@@ -97,6 +75,42 @@ bool AcquisitionManager::findLargestObject(const cv::Mat& binaryImg, cv::Rect& o
         return true;
     }
     return false;
+}
+
+/**
+ * @brief 표적 크기에 따라 패딩을 적용한 후 gray 변환된 템플릿 반환
+ */
+cv::Mat AcquisitionManager::buildTemplate(const cv::Mat& sourceImg, const cv::Rect& objectRect) {
+    // 표적 크기 기반 패딩 결정
+    int padding = (objectRect.width < 40 || objectRect.height < 40) ? 10 : 5;
+
+    cv::Rect paddedRect;
+    paddedRect.x      = std::max(0, objectRect.x - padding);
+    paddedRect.y      = std::max(0, objectRect.y - padding);
+    paddedRect.width  = std::min(sourceImg.cols - paddedRect.x, objectRect.width  + padding * 2);
+    paddedRect.height = std::min(sourceImg.rows - paddedRect.y, objectRect.height + padding * 2);
+
+    cv::Mat cropped = sourceImg(paddedRect).clone();
+
+    cv::Mat grayTemplate;
+    if (cropped.channels() == 3)
+        cv::cvtColor(cropped, grayTemplate, cv::COLOR_BGR2GRAY);
+    else
+        grayTemplate = cropped;
+
+    return grayTemplate;
+}
+
+/**
+ * @brief 이미 crop된 이미지에서 gray 변환만 수행 (updateTargetModel용 오버로드)
+ */
+cv::Mat AcquisitionManager::buildTemplate(const cv::Mat& croppedImg) {
+    cv::Mat grayTemplate;
+    if (croppedImg.channels() == 3)
+        cv::cvtColor(croppedImg, grayTemplate, cv::COLOR_BGR2GRAY);
+    else
+        grayTemplate = croppedImg.clone();
+    return grayTemplate;
 }
 
 /**
@@ -217,14 +231,7 @@ void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv:
         return;
     }
     
-    cv::Mat grayTemplate;
-    if (newTemplate.channels() == 3) {
-        cv::cvtColor(newTemplate, grayTemplate, cv::COLOR_BGR2GRAY);
-    } else {
-        grayTemplate = newTemplate;
-    }
-
-    m_targetTemplate = grayTemplate;
+    m_targetTemplate = buildTemplate(newTemplate); // gray 변환 (crop 없이 변환만 수행)
     m_targetDescriptors = newDescriptors.clone();
     std::cout << "[Acquisition] Target model updated with new template and descriptors." << std::endl;
 }
