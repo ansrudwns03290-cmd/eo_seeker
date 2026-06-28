@@ -134,7 +134,7 @@ int main() {
                     estimated_pos = state_estimator.update(kcf_center);
                     estimated_vel = state_estimator.getEstimatedVelocity();
 
-                    fsm.setTargetBox(target_box);
+                    fsm.setTargetBox(res.bbox);
                 } else{
                     // 추적 실패 시 임시 관성 유지 처리
                     estimated_pos = predicted_pos;
@@ -268,7 +268,6 @@ int main() {
         
         // --- 실시간 모니터링 그래픽 시각화 ---
         cv::Rect final_draw_box = fsm.getTargetBox();
-        std::cout << "FSM Box -> X: " << final_draw_box.x << ", Y: " << final_draw_box.y << std::endl;
         if (fsm.getCurrentState() == FSMState::TRACK) {
             cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
             cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
