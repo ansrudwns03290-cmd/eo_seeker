@@ -205,7 +205,7 @@ int main() {
             
                 // 디버깅: 후보 이미지 저장
                 
-                cv::imwrite("C:/eo_seeker/debug_images/candidate_roi_" + std::to_string(current_frame.frame_count) + ".png", candidateROI);
+                // cv::imwrite("C:/eo_seeker/debug_images/candidate_roi_" + std::to_string(current_frame.frame_count) + ".png", candidateROI);
                 std::cout << "후보 이미지 저장" << std::endl;
                 
                 float v_score = tracker.verifyCandidate(candidateROI, acq_manager.getTargetDescriptors(),

@@ -3,7 +3,7 @@
 
 AcquisitionManager::AcquisitionManager() {
     // ORB 특징점 추출기 초기화
-    m_orb = cv::ORB::create(1000, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
+    m_orb = cv::ORB::create(500, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
 }
 /**
  * @brief 초기 설정한 ROI에서 표적의 ORB 및 가로세로비 저장
@@ -235,9 +235,10 @@ bool AcquisitionManager::verifyCandidateWithORB(const cv::Mat& candidateROI) {
         }
     }
 
-    std::cout << "[Acquisition LOST] ORB 검증 실패. Good matches: " << good_matches
-                << ", Threshold: 5" << std::endl;
-
+    if (good_matches < 5) {
+        std::cout << "[Acquisition LOST] ORB 검증 실패. Good matches: " << good_matches
+                    << ", Threshold: 5" << std::endl;
+    }
     return (good_matches >= 5);
 }
 

@@ -6,6 +6,7 @@
 *.txt
 *.txt_src
 *.png
+*.md
 
 # 빌드 폴더 무시
 build/

@@ -157,8 +157,10 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
             cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
             
             // a. 현재 추적 위치의 신뢰도 계산
-            m_confidence = verifyTarget(currentROI, refTemplate, refDescriptors);
-
+            if (m_frameCount % 5 == 0) {
+                m_confidence = verifyTarget(currentROI, refTemplate, refDescriptors);
+            }
+            
             // b. 30프레임 주기마다 수행하는 정밀 모델 검증 및 업데이트
             if (m_frameCount % 30 == 0) { 
                 cv::Mat grayROI;
