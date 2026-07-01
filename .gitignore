@@ -4,11 +4,13 @@
 *.pdb
 *.exe
 *.txt
+!CMakeLists.txt
 *.txt_src
 *.png
 *.md
 
 # 빌드 폴더 무시
 build/
+build_cmake/
 .vscode/
 debug_images/

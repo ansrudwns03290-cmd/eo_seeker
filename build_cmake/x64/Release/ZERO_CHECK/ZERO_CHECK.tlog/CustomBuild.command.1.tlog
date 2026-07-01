@@ -1,0 +1,10 @@
+^C:\EO_SEEKER\BUILD_CMAKE\CMAKEFILES\04DD99B1EC2DA6424C40C626A831E11C\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/eo_seeker -BC:/eo_seeker/build_cmake --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/eo_seeker/build_cmake/eo_seeker.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
