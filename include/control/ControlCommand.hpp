@@ -1,14 +1,7 @@
 ﻿#pragma once
 
 #include <string>
-
-/**
- * @brief 서보 모터 제어 명령을 담는 구조체
- */
-struct ServoCommand {
-    double pan_cmd;   // Pan 서보 제어 출력값 (각도 또는 변위)
-    double tilt_cmd;  // Tilt 서보 제어 출력값 (각도 또는 변위)
-};
+#include "common/ServoCommand.hpp"
 
 /**
  * @brief 표적 중심 오차를 기반으로 Pan/Tilt 제어 명령을 생성하는 클래스
