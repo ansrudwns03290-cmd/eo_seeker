@@ -38,13 +38,10 @@ void StateEstimator::initialize(const cv::Point2f& initial_pos)
     m_kf.measurementMatrix.at<float>(0, 0) = 1.0f;
     m_kf.measurementMatrix.at<float>(1, 1) = 1.0f;
 
-    // 4. 시스템 노이즈 공분산 행렬 (Process Noise Covariance, Q)
-    cv::setIdentity(m_kf.processNoiseCov, cv::Scalar::all(m_process_noise_coef));
-
-    // 5. 측정 노이즈 공분산 행렬 (Measurement Noise Covariance, R)
+    // 4. 측정 노이즈 공분산 행렬 (Measurement Noise Covariance, R)
     cv::setIdentity(m_kf.measurementNoiseCov, cv::Scalar::all(m_measure_noise_coef));
 
-    // 6. 오차 공분산 행렬 (Error Covariance, P) 초기화
+    // 5. 오차 공분산 행렬 (Error Covariance, P) 초기화
     cv::setIdentity(m_kf.errorCovPost, cv::Scalar::all(1.0f));
 
     m_is_initialized = true;
@@ -57,6 +54,9 @@ cv::Point2f StateEstimator::predict(double dt)
     // 매 프레임 변하는 dt를 전이 행렬(A)에 실시간으로 반영합니다.
     m_kf.transitionMatrix.at<float>(0, 2) = static_cast<float>(dt);
     m_kf.transitionMatrix.at<float>(1, 3) = static_cast<float>(dt);
+
+    // dt^2를 곱하여 시간에 따른 불확실성 증가 반영
+    cv::setIdentity(m_kf.processNoiseCov, cv::Scalar::all(m_process_noise_coef * dt * dt)); 
 
     // OpenCV 내부 Kalman Predict 수행
     cv::Mat prediction = m_kf.predict();
