@@ -34,8 +34,8 @@ void ServoOutput::sendCommand(const ServoCommand& cmd) {
     (void)pan_pwm;
     (void)tilt_pwm;
 #else
-    std::cout << "[ServoOutput] Pan: " << pan_angle << "°"
-              << " / Tilt: " << tilt_angle << "°" << std::endl;
+//    std::cout << "[ServoOutput] Pan: " << pan_angle << "°"
+//              << " / Tilt: " << tilt_angle << "°" << std::endl;
 #endif
 }
 

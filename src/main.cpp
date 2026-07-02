@@ -11,6 +11,7 @@
 #include "state_estimation/StateEstimator.hpp"
 #include "fsm/FsmModule.hpp"
 #include "control/ControlCommand.hpp"
+#include "hardware_output/ServoOutput.hpp"
 
 int main() {
     // 1. 모듈 객체 생성
@@ -21,7 +22,7 @@ int main() {
     StateEstimator state_estimator;
     FsmModule fsm;
     ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
-    // ControlCommand control_command(0.00, 0.00, 0.000, 0.000); // 임시
+    ServoOutput servo_output(0.0, 180.0, 30.0, 150.0);
     
     // 2. 카메라 열기
     if (!video_input.open(0)) {
@@ -251,7 +252,8 @@ int main() {
         // 제어 명령 생성 모듈 구동
         // 칼만 필터가 산출한 정밀 최적 중심 위치와 현재 시스템 상태 문자열 주입
         ServoCommand servo_cmd = control_command.calculateCommand(estimated_pos.x, estimated_pos.y, fsm.getStateString());
-        
+        servo_output.sendCommand(servo_cmd);
+
         // FPS 계산 (10프레임마다 갱신)
         if (current_frame.frame_count % 10 == 0) {
             double elapsed_10f = (current_frame.timestamp_ms - fps_ref_ts) / 1000.0;
