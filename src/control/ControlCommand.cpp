@@ -11,13 +11,15 @@ ControlCommand::ControlCommand(double p_gain_x, double p_gain_y, double d_gain_x
 
 ServoCommand ControlCommand::calculateCommand(double target_x, double target_y, const std::string& fsm_state) {
     ServoCommand cmd{0.0, 0.0};
+    static double current_pan_angle = 90.0;  // 초기 Pan 각도 (중립 위치)
+    static double current_tilt_angle = 90.0; // 초기 Tilt 각도 (중립 위치)
 
     // 1. TRACK 상태가 아니거나 표적 유실 상황인 경우 처리
     if (fsm_state != "TRACK" && fsm_state != "REACQUIRE") {
-        // SEARCH나 LOST 모드인 상태에서는 모터를 급격하게 구동하지 않고 대기하거나 제어 명령을 0으로 동결
+        // SEARCH나 LOST 모드인 상태에서는 모터를 급격하게 구동하지 않고 마지막 유지 각도를 그대로 반환(정지 유지)
         prev_error_x_ = 0.0;
         prev_error_y_ = 0.0;
-        return cmd; 
+        return ServoCommand{current_pan_angle, current_tilt_angle};
     }
 
     // 2. 화면 중심과 표적 예측 위치 사이의 오차 계산 [cite: 64]
@@ -39,9 +41,6 @@ ServoCommand ControlCommand::calculateCommand(double target_x, double target_y, 
 
     double pan_output_delta = (error_x * kp_x_) + (delta_error_x * kd_x_);
     double tilt_output_delta = (error_y * kp_y_) + (delta_error_y * kd_y_);
-
-    static double current_pan_angle = 90.0;  // 초기 Pan 각도 (중립 위치)
-    static double current_tilt_angle = 90.0; // 초기 Tilt 각도 (중립 위치)
 
     current_pan_angle += pan_output_delta;
     current_tilt_angle += tilt_output_delta;
