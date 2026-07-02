@@ -5,7 +5,7 @@
 Tracker::Tracker() 
     : m_confidence(0.0f), m_isInitialized(false) {
     // 생성자에서는 객체를 할당하지 않고 init 호출 시 할당하는 것이 메모리 관리에 유리합니다.
-    m_orb = cv::ORB::create(500);
+    m_orb = cv::ORB::create(150);
     // ORB는 Binary 기술자이므로 Hamming 거리를 사용하는 매칭기를 생성합니다.
     m_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE_HAMMING);
 }

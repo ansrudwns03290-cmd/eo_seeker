@@ -3,7 +3,7 @@
 
 AcquisitionManager::AcquisitionManager() {
     // ORB 특징점 추출기 초기화
-    m_orb = cv::ORB::create(500, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
+    m_orb = cv::ORB::create(150, 1.2f, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 10); 
 }
 /**
  * @brief 초기 설정한 ROI에서 표적의 ORB 및 가로세로비 저장
