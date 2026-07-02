@@ -19,8 +19,6 @@ Tracker::~Tracker() {}
  * @return 초기화 성공 여부
  */
 bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& templateImg, const cv::Mat descriptors) {
-    if (m_isInitialized) return true;
-    
     if (frame.empty() || bbox.width <= 0 || bbox.height <= 0) {
         std::cerr << "[Tracker] Invalid Init Data!" << std::endl;
         return false;

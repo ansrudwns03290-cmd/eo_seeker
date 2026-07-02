@@ -92,12 +92,20 @@ int main() {
     double  current_fps  = 0.0;
     int64_t fps_ref_ts   = static_cast<int64_t>(session_start_ms);
 
+    // [진단용] 카메라 대기 시간 vs 처리(추적+FSM+표시) 시간 분리 계측
+    double accum_read_ms    = 0.0;
+    double accum_process_ms = 0.0;
+    auto   t_after_read     = std::chrono::steady_clock::now();
+
     cv::Point2f estimated_pos(0, 0);
     cv::Point2f estimated_vel(0,0);
 
     while (true) {
+        auto t_read_start = std::chrono::steady_clock::now();
         if (!video_input.read(current_frame)) break;
-        
+        t_after_read = std::chrono::steady_clock::now();
+        accum_read_ms += std::chrono::duration<double, std::milli>(t_after_read - t_read_start).count();
+
         // --- 칼만 필터 예측 수행 ---
         if (last_timestamp_ms == 0.0) {
             last_timestamp_ms = current_frame.timestamp_ms;
@@ -259,6 +267,12 @@ int main() {
             double elapsed_10f = (current_frame.timestamp_ms - fps_ref_ts) / 1000.0;
             current_fps = (elapsed_10f > 0.0) ? (10.0 / elapsed_10f) : 0.0;
             fps_ref_ts  = static_cast<int64_t>(current_frame.timestamp_ms);
+
+            // [진단용] 최근 10프레임 평균 "카메라 대기 시간" vs "처리 시간" 출력
+            std::cout << "[Timing] Camera Wait Avg: " << std::fixed << std::setprecision(2) << (accum_read_ms / 10.0)
+                      << "ms | Processing Avg: " << (accum_process_ms / 10.0) << "ms (last 10 frames)" << std::endl;
+            accum_read_ms    = 0.0;
+            accum_process_ms = 0.0;
         }
         double rel_ts = current_frame.timestamp_ms - session_start_ms;
 
@@ -321,6 +335,9 @@ int main() {
         cv::imshow("Tracking Test", display_img);
 
         if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
+
+        // [진단용] 이번 프레임의 "카메라 대기"를 제외한 나머지(전처리~표시~waitKey) 소요 시간 누적
+        accum_process_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_after_read).count();
     }
 
 CORE_LOOP_EXIT:

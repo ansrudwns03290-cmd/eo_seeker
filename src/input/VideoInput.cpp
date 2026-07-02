@@ -23,6 +23,9 @@ bool VideoInput::open(int camera_id) {
     // 실시간성 확보: 오래된 프레임이 쌓이지 않도록 버퍼 1로 제한 [cite: 70, 448]
     cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
+    // [진단용] 드라이버가 보고하는 이론상 FPS 확인 (실측치와 비교용, 참고 수치)
+    std::cout << "[VideoInput] Driver-reported FPS: " << cap_.get(cv::CAP_PROP_FPS) << std::endl;
+
     return cap_.isOpened();
 }
 
