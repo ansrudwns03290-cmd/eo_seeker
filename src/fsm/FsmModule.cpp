@@ -106,7 +106,7 @@ void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool 
                          currentVelocity.y * currentVelocity.y);
                     m_isHighSpeedLoss = (targetSpeed >= 15.0);
     
-                    std::cout << "[FSM LOST Caouse] Target Speed" << targetSpeed
+                    std::cout << "[FSM LOST Cause] Target Speed" << targetSpeed
                                 << (m_isHighSpeedLoss ? " (High-Speed Loss)" : " (Normal Loss)") << std::endl;
 
                     nextState = FSMState::LOST;
