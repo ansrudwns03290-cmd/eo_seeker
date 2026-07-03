@@ -31,8 +31,8 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
         cv::Mat objectOnly = roiImg(actualObjectRect);
-        m_targetTemplate = buildTemplate(roiImg, actualObjectRect); // 크기 기반 패딩 적용 + gray 변환
-
+        m_targetTemplate = buildTemplate(roiImg); 
+        
         cv::Mat objectGray;
         if (objectOnly.channels() == 3)
             cv::cvtColor(objectOnly, objectGray, cv::COLOR_BGR2GRAY);
