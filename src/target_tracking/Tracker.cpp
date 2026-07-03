@@ -214,12 +214,6 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                         std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
                     
                         cv::Mat newTemplate;
-                        if (maxContourBox.width > 10 && maxContourBox.height > 10) {
-                            cv::Rect tightRoi = maxContourBox & cv::Rect(0, 0, currentROI.cols, currentROI.rows);
-                            newTemplate = currentROI(tightRoi).clone();
-                        } else {
-                            newTemplate = currentROI.clone();
-                        }
 
                         // ORB 특징점 재추출
                         std::vector<cv::KeyPoint> kp;
