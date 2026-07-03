@@ -62,10 +62,32 @@ int main() {
                 return -1;
             }
 
+            // [워밍업] KCF FFT 플랜 / ORB 검출기 내부 캐시를 세션 타이머 시작 전에 미리 예열
+            // 동일한 정지 이미지로만 반복 실행하므로 실제 추적 결과에는 영향 없음 (1회성 초기화 비용을 세션 통계에서 분리하기 위함)
+            {
+                auto warmup_start = std::chrono::steady_clock::now();
+                std::cout << "[Warm-up] 초기화 캐시 예열 중..." << std::endl;
+                for (int i = 0; i < 6; ++i) {
+                    tracker.update(initial_processed_img, acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
+                }
+                // 예열 중 누적된 프레임 카운터/신뢰도 상태를 깨끗하게 리셋 (실제 세션은 항상 동일한 초기 상태에서 시작)
+                tracker.init(initial_processed_img, target_box,
+                             acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
+                double warmup_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - warmup_start).count();
+                std::cout << "[Warm-up] 완료 (" << std::fixed << std::setprecision(0) << warmup_ms
+                          << "ms, 세션 통계에서 제외됨)" << std::endl;
+            }
+
+            // 예열 후 새 프레임을 다시 읽어 실제 세션 시작 시점 기준으로 삼음 (세션 타이머가 워밍업 비용을 포함하지 않도록)
+            if (!video_input.read(current_frame)) {
+                std::cerr << "[Error] 예열 후 프레임을 읽어올 수 없습니다." << std::endl;
+                return -1;
+            }
+
             /*칼만 필터 초기화*/
             cv::Point2f kcf_center(target_box.x + target_box.width / 2.0f, target_box.y + target_box.height / 2.0f);
-            state_estimator.initialize(kcf_center); // 칼만 필터 초기화    
-            
+            state_estimator.initialize(kcf_center); // 칼만 필터 초기화
+
             fsm.setTargetBox(target_box);
             fsm.forceSetState(FSMState::TRACK); // 초기 상태 설정
 
@@ -307,32 +329,32 @@ int main() {
         //           << std::endl;
         
         // [Step B] 시각화 준비
-        cv::Mat display_img = current_frame.image.clone();
+        // cv::Mat display_img = current_frame.image.clone();
         
-        // --- 실시간 모니터링 그래픽 시각화 ---
-        cv::Rect final_draw_box = fsm.getTargetBox();
-        if (fsm.getCurrentState() == FSMState::TRACK) {
-            cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
-            cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
-        } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
-            cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
-            cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
-        }
+        // // --- 실시간 모니터링 그래픽 시각화 ---
+        // cv::Rect final_draw_box = fsm.getTargetBox();
+        // if (fsm.getCurrentState() == FSMState::TRACK) {
+        //     cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
+        //     cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
+        // } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
+        //     cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
+        //     cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
+        // }
         
-        // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
-        cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
-        cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
-        cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
+        // // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
+        // cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
+        // cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
+        // cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
 
-            cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
+        //     cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
-        std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
-                                " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
-        cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
+        // std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
+        //                         " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
+        // cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
         
-        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
-                        0.5, cv::Scalar(255, 255, 0), 1);
-        cv::imshow("Tracking Test", display_img);
+        // cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
+        //                 0.5, cv::Scalar(255, 255, 0), 1);
+        // cv::imshow("Tracking Test", display_img);
 
         if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
 
