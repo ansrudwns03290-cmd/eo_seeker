@@ -212,14 +212,28 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                     else {
                         // 5) 안정적인 추적 중이면 템플릿/특징점 갱신 Trigger
                         std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
-                    
-                        cv::Mat newTemplate = currentROI.clone();;
+
+                        // NCC 템플릿은 향후 currentROI(박스 전체)와 구도를 맞춰 비교해야 하므로
+                        // 박스 전체를 그대로 사용한다.
+                        cv::Mat newTemplate = currentROI.clone();
+
+                        // ORB는 setTargetModel의 최초 등록 방식과 동일하게, 배경이 섞이지 않도록
+                        // 컨투어로 도려낸 물체 영역(maxContourBox)에서만 추출한다.
+                        // 박스 전체(currentROI)로 뽑으면, 표적이 조금만 움직여도 박스 안에 들어있던
+                        // 배경(고정 사물) 특징점이 통째로 바뀌면서 매칭 개수가 급락 -> 오탐 LOST로 이어진다.
+                        cv::Mat orbSourceROI = currentROI;
+                        if (maxContourBox.width > 10 && maxContourBox.height > 10) {
+                            cv::Rect tightRoi = maxContourBox & cv::Rect(0, 0, currentROI.cols, currentROI.rows);
+                            if (tightRoi.width > 0 && tightRoi.height > 0) {
+                                orbSourceROI = currentROI(tightRoi).clone();
+                            }
+                        }
 
                         // ORB 특징점 재추출
                         std::vector<cv::KeyPoint> kp;
                         cv::Mat newDescriptors;
-                        m_orb->detectAndCompute(currentROI, cv::noArray(), kp, newDescriptors);
-                        
+                        m_orb->detectAndCompute(orbSourceROI, cv::noArray(), kp, newDescriptors);
+
                         // 결과 구조체에 업데이트 정보 할당
                         result.needTemplateUpdate = true;
                         result.newTemplate = newTemplate;
