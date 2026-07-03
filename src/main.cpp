@@ -3,6 +3,12 @@
 #include <chrono>
 #include <iomanip>
 #include <string>
+#include <fstream>
+#include <streambuf>
+#include <filesystem>
+#include <memory>
+#include <cstdio>
+#include <array>
 
 #include "input/VideoInput.hpp"
 #include "common/Frame.hpp"
@@ -14,11 +20,123 @@
 #include "control/ControlCommand.hpp"
 #include "hardware_output/ServoOutput.hpp"
 
+// ============================================================
+// [로그 자동 저장] 콘솔에 찍히는 모든 출력을 화면에도 보여주는 동시에
+// "<커밋해시>_<순번>_<영상이름>.log" 파일로도 자동 저장한다.
+// 코드가 바뀔 때마다 로그 파일명에 그 시점의 git 커밋 해시가 남아서,
+// 나중에 "이 로그가 어떤 코드로 만들어졌는지" 헷갈릴 일이 없다.
+// ============================================================
+
+// 현재 작업 트리의 git 커밋 해시(짧은 형태)를 조회. git이 없거나 실패하면 "nogit" 반환.
+static std::string getGitCommitHash() {
+    std::array<char, 64> buffer{};
+    std::string result;
+
+    FILE* pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
+    if (!pipe) return "nogit";
+
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+        result += buffer.data();
+    }
+    _pclose(pipe);
+
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
+        result.pop_back();
+    }
+    return result.empty() ? "nogit" : result;
+}
+
+// std::cout/std::cerr에 찍히는 내용을 콘솔과 파일 두 곳에 동시에 기록하는 스트림버퍼
+class TeeBuf : public std::streambuf {
+public:
+    TeeBuf(std::streambuf* b1, std::streambuf* b2) : m_buf1(b1), m_buf2(b2) {}
+
+protected:
+    int overflow(int c) override {
+        if (c == EOF) return !EOF;
+        int r1 = m_buf1->sputc(static_cast<char>(c));
+        int r2 = m_buf2->sputc(static_cast<char>(c));
+        return (r1 == EOF || r2 == EOF) ? EOF : c;
+    }
+
+    int sync() override {
+        int r1 = m_buf1->pubsync();
+        int r2 = m_buf2->pubsync();
+        return (r1 == 0 && r2 == 0) ? 0 : -1;
+    }
+
+private:
+    std::streambuf* m_buf1;
+    std::streambuf* m_buf2;
+};
+
+// RAII 로거: 생성되는 순간부터 소멸될 때까지의 모든 std::cout/std::cerr 출력을
+// 자동으로 로그 파일에도 남긴다. main()의 다른 모든 지역 변수보다 먼저 생성해야
+// (즉 맨 첫 줄에 선언해야) 프로그램 실행 전체를 빠짐없이 기록할 수 있다.
+class FileLogger {
+public:
+    FileLogger(int argc, char** argv) {
+        namespace fs = std::filesystem;
+
+        std::string gitHash    = getGitCommitHash();
+        std::string videoLabel = (argc > 1) ? fs::path(argv[1]).stem().string() : "camera";
+
+        fs::path logsDir = "C:/eo_seeker/logs";
+        std::error_code ec;
+        fs::create_directories(logsDir, ec);
+
+        // 같은 커밋 해시로 이미 저장된 로그 개수를 세어 순번을 자동으로 매긴다.
+        std::string prefix = gitHash + "_";
+        int nextNum = 1;
+        if (!ec && fs::exists(logsDir)) {
+            for (const auto& entry : fs::directory_iterator(logsDir)) {
+                if (entry.is_regular_file() && entry.path().filename().string().rfind(prefix, 0) == 0) {
+                    nextNum++;
+                }
+            }
+        }
+
+        char numBuf[8];
+        std::snprintf(numBuf, sizeof(numBuf), "%03d", nextNum);
+
+        m_logPath = (logsDir / (gitHash + "_" + numBuf + "_" + videoLabel + ".log")).string();
+        m_file.open(m_logPath);
+
+        if (m_file.is_open()) {
+            m_coutTee = std::make_unique<TeeBuf>(std::cout.rdbuf(), m_file.rdbuf());
+            m_cerrTee = std::make_unique<TeeBuf>(std::cerr.rdbuf(), m_file.rdbuf());
+            m_oldCoutBuf = std::cout.rdbuf(m_coutTee.get());
+            m_oldCerrBuf = std::cerr.rdbuf(m_cerrTee.get());
+            std::cout << "[Logger] 로그 저장 경로: " << m_logPath << std::endl;
+        } else {
+            std::cerr << "[Logger] 로그 파일을 열 수 없습니다: " << m_logPath << std::endl;
+        }
+    }
+
+    ~FileLogger() {
+        // std::cout/std::cerr을 원래 버퍼로 되돌려놓아야, 이 객체(및 파일 스트림)가
+        // 먼저 소멸된 뒤에도 다른 static 객체가 cout을 안전하게 쓸 수 있다.
+        if (m_oldCoutBuf) std::cout.rdbuf(m_oldCoutBuf);
+        if (m_oldCerrBuf) std::cerr.rdbuf(m_oldCerrBuf);
+    }
+
+private:
+    std::ofstream            m_file;
+    std::unique_ptr<TeeBuf>  m_coutTee;
+    std::unique_ptr<TeeBuf>  m_cerrTee;
+    std::streambuf*          m_oldCoutBuf = nullptr;
+    std::streambuf*          m_oldCerrBuf = nullptr;
+    std::string              m_logPath;
+};
+
 // 실행 인자 규격 (재현 가능한 회귀 테스트용):
 //   인자 없음                          -> 라이브 카메라(0번) 사용, ROI는 마우스로 직접 선택
 //   <영상경로>                         -> 해당 영상 파일 재생, ROI는 마우스로 직접 선택
 //   <영상경로> <x> <y> <w> <h>         -> 영상 파일 재생 + ROI 좌표 고정 (매번 동일한 조건으로 테스트 가능)
 int main(int argc, char** argv) {
+    // 0. 이 시점부터의 모든 콘솔 출력을 로그 파일에도 자동 저장 (반드시 가장 먼저 생성)
+    FileLogger file_logger(argc, argv);
+
     // 1. 모듈 객체 생성
     VideoInput video_input;
     Preprocessor preprocessor;
