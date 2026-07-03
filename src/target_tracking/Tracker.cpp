@@ -213,7 +213,7 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                         // 5) 안정적인 추적 중이면 템플릿/특징점 갱신 Trigger
                         std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
                     
-                        cv::Mat newTemplate;
+                        cv::Mat newTemplate = currentROI.clone();;
 
                         // ORB 특징점 재추출
                         std::vector<cv::KeyPoint> kp;
