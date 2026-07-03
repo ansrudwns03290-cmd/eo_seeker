@@ -183,7 +183,10 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
         // 매칭 위치의 이미지만 crop하여 특징점 검증
         cv::Mat candidateROI = croppedSearchImg(bestCandidate);
 
-        if (verifyCandidateWithORB(candidateROI)) {
+        const int MIN_DESCRIPTOR_COUNT = 7;
+        bool verified = (m_targetDescriptors.rows < MIN_DESCRIPTOR_COUNT) ? true : verifyCandidateWithORB(candidateROI);
+
+        if (verified) {
             // 전체 좌표계로 변환
             outCandidateBox.x = searchRoi.x + bestCandidate.x;
             outCandidateBox.y = searchRoi.y + bestCandidate.y;
