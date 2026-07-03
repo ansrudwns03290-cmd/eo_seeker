@@ -9,6 +9,7 @@
 #include <memory>
 #include <cstdio>
 #include <array>
+#include <algorithm>
 
 #include "input/VideoInput.hpp"
 #include "common/Frame.hpp"
@@ -52,6 +53,15 @@ public:
     TeeBuf(std::streambuf* b1, std::streambuf* b2) : m_buf1(b1), m_buf2(b2) {}
 
 protected:
+    // 문자열/버퍼 단위로 한 번에 넘어오는 쓰기는 문자 단위로 쪼개지 않고
+    // 통째로 양쪽에 전달한다 (성능 핵심: operator<<의 대부분은 이 경로를 탄다).
+    std::streamsize xsputn(const char* s, std::streamsize n) override {
+        std::streamsize r1 = m_buf1->sputn(s, n);
+        std::streamsize r2 = m_buf2->sputn(s, n);
+        return std::min(r1, r2);
+    }
+
+    // xsputn이 처리하지 못하고 넘어온 한 글자짜리 예외 케이스에 대한 폴백
     int overflow(int c) override {
         if (c == EOF) return !EOF;
         int r1 = m_buf1->sputc(static_cast<char>(c));
