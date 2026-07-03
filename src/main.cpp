@@ -318,43 +318,34 @@ int main() {
                   << " | Tilt: " << servo_cmd.tilt_cmd
                   << std::endl;
         }
-        // }
-        // // 메타데이터 확인 로그 (Resolution, Timestamp)
-        // std::cout << "Frame: " << current_frame.width << "x" << current_frame.height
-        //           << " | Count: " << current_frame.frame_count
-        //           << " | State: " << fsm.getStateString()
-        //           << " | Conf: " << std::fixed << std::setprecision(2) << conf
-        //           << " | TS: " << current_frame.timestamp_ms << "ms" 
-        //           << " | Vel: (" << static_cast<int>(estimated_vel.x) << ", " << static_cast<int>(estimated_vel.y) << ")"
-        //           << std::endl;
         
         // [Step B] 시각화 준비
-        // cv::Mat display_img = current_frame.image.clone();
+        cv::Mat display_img = current_frame.image.clone();
         
-        // // --- 실시간 모니터링 그래픽 시각화 ---
-        // cv::Rect final_draw_box = fsm.getTargetBox();
-        // if (fsm.getCurrentState() == FSMState::TRACK) {
-        //     cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
-        //     cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
-        // } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
-        //     cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
-        //     cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
-        // }
+        // --- 실시간 모니터링 그래픽 시각화 ---
+        cv::Rect final_draw_box = fsm.getTargetBox();
+        if (fsm.getCurrentState() == FSMState::TRACK) {
+            cv::rectangle(display_img, final_draw_box, cv::Scalar(0, 255, 0), 2);
+            cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
+        } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
+            cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
+            cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
+        }
         
-        // // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
-        // cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
-        // cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
-        // cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
+        // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
+        cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
+        cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
+        cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
 
-        //     cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
+            cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
-        // std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
-        //                         " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
-        // cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
+        std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
+                                " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
+        cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
         
-        // cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
-        //                 0.5, cv::Scalar(255, 255, 0), 1);
-        // cv::imshow("Tracking Test", display_img);
+        cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
+                        0.5, cv::Scalar(255, 255, 0), 1);
+        cv::imshow("Tracking Test", display_img);
 
         if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
 
