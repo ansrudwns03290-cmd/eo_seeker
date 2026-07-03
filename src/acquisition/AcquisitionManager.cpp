@@ -52,6 +52,10 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
         std::cout << "[Acquisition] Target Registered (Box Mode)" << std::endl;
     }
 
+    // 드리프트 검증용 원본 스냅샷 보관 (updateTargetModel에서 절대 덮어쓰지 않음)
+    m_originalTemplate = m_targetTemplate.clone();
+    m_originalDescriptors = m_targetDescriptors.clone();
+
     std::cout << "[Acquisition: Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
 }
 
@@ -245,12 +249,87 @@ bool AcquisitionManager::verifyCandidateWithORB(const cv::Mat& candidateROI) {
     return (good_matches >= 5);
 }
 
+/**
+ * @brief 주기 갱신으로 들어온 새 템플릿/디스크립터가 최초 등록된 원본 표적과
+ *        여전히 충분히 비슷한지 검증한다 (템플릿 드리프트 방지용 anchor 체크).
+ *        직전 기준과만 비교하면, KCF가 배경으로 조금씩 밀려도 매번 "직전과 비슷하다"는
+ *        이유로 계속 통과해버려 결국 완전히 다른 것을 표적으로 착각하게 된다.
+ *        그래서 절대 바뀌지 않는 최초 원본과도 항상 같이 비교한다.
+ */
+bool AcquisitionManager::isStillSimilarToOriginal(const cv::Mat& candidateTemplate, const cv::Mat& candidateDescriptors) const {
+    if (m_originalTemplate.empty() && m_originalDescriptors.empty()) {
+        return true; // 비교 기준 자체가 없는 비정상 상황이면 통과시킨다
+    }
+
+    // 1. NCC 기반 비교 (원본 템플릿 대비)
+    bool nccChecked = false;
+    bool nccPass = false;
+    if (!m_originalTemplate.empty() && !candidateTemplate.empty()) {
+        cv::Mat resized;
+        cv::resize(candidateTemplate, resized, m_originalTemplate.size());
+
+        if (resized.channels() != m_originalTemplate.channels()) {
+            if (m_originalTemplate.channels() == 1 && resized.channels() == 3) {
+                cv::cvtColor(resized, resized, cv::COLOR_BGR2GRAY);
+            } else if (m_originalTemplate.channels() == 3 && resized.channels() == 1) {
+                cv::cvtColor(resized, resized, cv::COLOR_GRAY2BGR);
+            }
+        }
+
+        cv::Mat res;
+        cv::matchTemplate(resized, m_originalTemplate, res, cv::TM_CCOEFF_NORMED);
+        double minVal, maxVal;
+        cv::minMaxLoc(res, &minVal, &maxVal);
+
+        nccChecked = true;
+        // Tracker::calculateNCCConfidence의 완전 통과선(0.48)보다는 관대하고
+        // 완전 실패선(0.25)보다는 엄격한 중간 지점을 anchor 기준으로 사용
+        nccPass = (maxVal >= 0.35);
+
+        std::cout << "[Acquisition: Anchor] 원본 대비 NCC: " << maxVal
+                    << " (기준 0.35, " << (nccPass ? "통과" : "미달") << ")" << std::endl;
+    }
+
+    // 2. ORB 기반 비교 (원본 디스크립터 대비)
+    bool orbChecked = false;
+    bool orbPass = false;
+    const int MIN_DESCRIPTOR_COUNT = 5;
+    if (m_originalDescriptors.rows >= MIN_DESCRIPTOR_COUNT && !candidateDescriptors.empty()) {
+        cv::BFMatcher matcher(cv::NORM_HAMMING);
+        std::vector<cv::DMatch> matches;
+        matcher.match(m_originalDescriptors, candidateDescriptors, matches);
+
+        int goodMatches = 0;
+        for (const auto& m : matches) {
+            if (m.distance < 80.0) goodMatches++;
+        }
+
+        orbChecked = true;
+        orbPass = (goodMatches >= 3);
+
+        std::cout << "[Acquisition: Anchor] 원본 대비 ORB Good Matches: " << goodMatches
+                    << " (기준 3, " << (orbPass ? "통과" : "미달") << ")" << std::endl;
+    }
+
+    // 3. 판정: 검증 가능했던 항목 중 하나라도 통과하면 인정한다.
+    //    (배경 변화 없이도 조명/각도 변화만으로 한쪽 지표가 흔들릴 수 있어, 너무 엄격하게
+    //     둘 다 요구하면 정상적인 갱신까지 막아버릴 수 있다.)
+    //    단, 검증 가능한 항목이 하나도 없었다면 보수적으로 통과시킨다.
+    if (!nccChecked && !orbChecked) return true;
+    return (nccChecked && nccPass) || (orbChecked && orbPass);
+}
+
 void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv::Mat& newDescriptors) {
     if (newTemplate.empty() || newDescriptors.empty()) {
         std::cerr << "[Acquisition] Warning: Attempting to update target model with empty template or descriptors." << std::endl;
         return;
     }
-    
+
+    if (!isStillSimilarToOriginal(newTemplate, newDescriptors)) {
+        std::cout << "[Acquisition] 갱신 거부: 최초 등록된 원본 표적과 너무 달라짐 (드리프트/배경 오검출 의심)" << std::endl;
+        return;
+    }
+
     m_targetTemplate = buildTemplate(newTemplate); // gray 변환 (crop 없이 변환만 수행)
     m_targetDescriptors = newDescriptors.clone();
     std::cout << "[Acquisition] Target model updated with new template and descriptors." << std::endl;

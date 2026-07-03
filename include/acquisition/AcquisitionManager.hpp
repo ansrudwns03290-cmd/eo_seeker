@@ -28,6 +28,11 @@ public:
     cv::Mat getTargetDescriptors() const { return m_targetDescriptors; }
     cv::Mat getTargetTemplate() const { return m_targetTemplate; }
 
+    // 최초 등록 시점(setTargetModel)의 원본 스냅샷. updateTargetModel이 절대 덮어쓰지 않으며,
+    // 드리프트 여부를 판단하는 변하지 않는 기준점으로 사용된다.
+    cv::Mat getOriginalTemplate() const { return m_originalTemplate; }
+    cv::Mat getOriginalDescriptors() const { return m_originalDescriptors; }
+
     bool verifyCandidateWithORB(const cv::Mat& candidateROI);
 
     void updateTargetModel(const cv::Mat& newTemplate, const cv::Mat& newDescriptors);
@@ -52,4 +57,13 @@ private:
     cv::Mat m_targetDescriptors;
     cv::Mat m_targetTemplate;
     std::vector<cv::KeyPoint> m_targetKeypoints;
+
+    // [드리프트 방지용] 최초 등록 시점의 원본 템플릿/디스크립터.
+    // updateTargetModel()에서 절대 덮어쓰지 않고, 매 갱신 시 "여전히 원본과 비슷한가"를
+    // 검증하는 anchor(고정 기준점)로만 사용한다.
+    cv::Mat m_originalTemplate;
+    cv::Mat m_originalDescriptors;
+
+    // newTemplate/newDescriptors가 최초 원본과 여전히 충분히 비슷한지 검증
+    bool isStillSimilarToOriginal(const cv::Mat& candidateTemplate, const cv::Mat& candidateDescriptors) const;
 };
