@@ -71,7 +71,9 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
         m_lastBbox = bbox; 
         
         m_confidence = 1.0f;
-        m_frameCount = 0; 
+        m_frameCount = 0;
+        m_smallSizeStreak = 0;
+        m_largeSizeStreak = 0;
 
         std::cout << "[Tracker] KCF Initialized successfully. (Grayscale Target Ready)" << std::endl;
     } catch (const cv::Exception& e) {
@@ -197,19 +199,55 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         
                 if (m_confidence > 0.6f) {
                     // 표적 커지면 원본 모드로, 작아지면 업스케일 모드로 전환
+                    // -- 단, 단 한 번의 컨투어 측정(조명/그림자에 따라 크게 흔들릴 수 있음)만으로
+                    //    KCF를 통째로 재시작(reinitTracker)하면, 그 순간 박스가 아주 살짝만
+                    //    표적에서 벗어나 있어도 트래커가 엉뚱한 위치를 "정답"으로 확신하고
+                    //    이후 계속 그쪽을 추적하는 사고로 이어질 수 있다.
+                    //    그래서 (1) 같은 판정이 연속 N회 나올 때만, (2) 그 시점의 박스 위치가
+                    //    직전 프레임 대비 비정상적으로 튀지 않았을 때만 실제 전환을 수행한다.
                     if (isUpscaledMode && currentOriginalWidth >= 75) {
-                        std::cout << "[Tracker] 표적 크기 75px 도달! 원본 모드로 전환" << std::endl;
-                        result = reinitTracker(frame, outBbox, 1.0f);
-                        result.bbox = outBbox;
-                        result.success = true;
+                        m_largeSizeStreak++;
+                        m_smallSizeStreak = 0;
+
+                        if (m_largeSizeStreak >= REINIT_CONFIRM_STREAK) {
+                            if (isReinitPositionSane(outBbox)) {
+                                std::cout << "[Tracker] 표적 크기 75px 도달(연속 확인)! 원본 모드로 전환" << std::endl;
+                                cv::Rect contourRel = maxContourBox; // 이미 1x 기준(업스케일 시 위에서 보정 필요)
+                                if (isUpscaledMode) {
+                                    contourRel.x /= 2; contourRel.y /= 2;
+                                    contourRel.width /= 2; contourRel.height /= 2;
+                                }
+                                result = reinitTracker(frame, outBbox, 1.0f, contourRel);
+                                result.bbox = outBbox;
+                                result.success = true;
+                            } else {
+                                std::cout << "[Tracker] 표적 크기 판정은 통과했지만 위치가 비정상적으로 튀어 재시작 보류" << std::endl;
+                            }
+                            m_largeSizeStreak = 0;
+                        }
                     }
                     else if (!isUpscaledMode && currentOriginalWidth < 50) {
-                        std::cout << "[Tracker] 표적 크기 50px 미만! 업스케일 모드로 전환" << std::endl;
-                        result = reinitTracker(frame, outBbox, 2.0f);
-                        result.bbox = outBbox;
-                        result.success = true;
+                        m_smallSizeStreak++;
+                        m_largeSizeStreak = 0;
+
+                        if (m_smallSizeStreak >= REINIT_CONFIRM_STREAK) {
+                            if (isReinitPositionSane(outBbox)) {
+                                std::cout << "[Tracker] 표적 크기 50px 미만(연속 확인)! 업스케일 모드로 전환" << std::endl;
+                                cv::Rect contourRel = maxContourBox; // 비업스케일 상태에서 측정했으므로 이미 1x 기준
+                                result = reinitTracker(frame, outBbox, 2.0f, contourRel);
+                                result.bbox = outBbox;
+                                result.success = true;
+                            } else {
+                                std::cout << "[Tracker] 표적 크기 판정은 통과했지만 위치가 비정상적으로 튀어 재시작 보류" << std::endl;
+                            }
+                            m_smallSizeStreak = 0;
+                        }
                     }
                     else {
+                        // 크기 판정이 애매해서 스위칭 조건을 벗어났다면 연속 카운트를 리셋
+                        m_smallSizeStreak = 0;
+                        m_largeSizeStreak = 0;
+
                         // 5) 안정적인 추적 중이면 템플릿/특징점 갱신 Trigger
                         std::cout << "[Tracker] 현재 모드 유지 (크기 변화 없음)" << std::endl;
 
@@ -367,17 +405,53 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
     return finalConf;
 }
 
-Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor) {
+/**
+ * @brief reinitTracker 직전 안전장치
+ * outBbox(이번 프레임 KCF 결과)가 m_lastBbox(직전 프레임 위치) 대비 한 프레임 만에
+ * 비정상적으로 멀리 이동했다면, KCF가 이미 엉뚱한 곳을 잡았을 가능성이 높다고 보고
+ * 그 위치를 "정답"으로 믿고 재시작하는 것을 보류한다.
+ */
+bool Tracker::isReinitPositionSane(const cv::Rect& newBox) const {
+    if (m_lastBbox.width <= 0 || m_lastBbox.height <= 0) return true; // 비교 기준이 없으면 통과
+
+    cv::Point2f prevCenter(m_lastBbox.x + m_lastBbox.width / 2.0f, m_lastBbox.y + m_lastBbox.height / 2.0f);
+    cv::Point2f newCenter(newBox.x + newBox.width / 2.0f, newBox.y + newBox.height / 2.0f);
+
+    double dist = cv::norm(newCenter - prevCenter);
+
+    // 한 프레임 만의 이동치고 박스 크기(가로/세로 중 큰 값)의 1배를 넘으면 비정상으로 간주
+    double maxAllowed = std::max({static_cast<double>(m_lastBbox.width), static_cast<double>(m_lastBbox.height), 40.0});
+
+    if (dist > maxAllowed) {
+        std::cout << "[Tracker] Reinit 위치 이상 감지: 직전 대비 " << dist
+                  << "px 이동 (허용치 " << maxAllowed << "px)" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor,
+                                                const cv::Rect& tightObjectRectRel) {
     TrackingResult result;
     result.needTemplateUpdate = true;
-    
+
     // 1. 공통 안전 영역 도려내기 및 1배 원본 정답지 스냅샷 백업
     cv::Rect origSafeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
     result.newTemplate = frame(origSafeRoi).clone();
 
-    // 2. 공통 ORB 기술자 데이터 업데이트 (1배 원본 조각 기준 생성)
+    // 2. 공통 ORB 기술자 데이터 업데이트
+    // setTargetModel/주기 갱신과 동일하게, 배경이 섞이지 않도록 가능하면 컨투어로 도려낸
+    // 물체 영역(tightObjectRectRel, origSafeRoi 기준 상대좌표)에서만 ORB를 추출한다.
+    cv::Mat orbSourceROI = result.newTemplate;
+    if (tightObjectRectRel.width > 10 && tightObjectRectRel.height > 10) {
+        cv::Rect tightRoi = tightObjectRectRel & cv::Rect(0, 0, result.newTemplate.cols, result.newTemplate.rows);
+        if (tightRoi.width > 0 && tightRoi.height > 0) {
+            orbSourceROI = result.newTemplate(tightRoi).clone();
+        }
+    }
+
     std::vector<cv::KeyPoint> kp;
-    m_orb->detectAndCompute(result.newTemplate, cv::noArray(), kp, result.newDescriptors);
+    m_orb->detectAndCompute(orbSourceROI, cv::noArray(), kp, result.newDescriptors);
     std::cout << "[Tracker:Reset] New ORB descriptors : " << result.newDescriptors.rows << " points" << std::endl;
 
     // 3. 기존 KCF 추적기 구형 기억 파괴 및 재생성

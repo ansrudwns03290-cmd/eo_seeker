@@ -49,9 +49,10 @@ public:
      * @param outBbox 원본 해상도 기준 현재 표적 좌표
      * @param scaleFactor 업스케일링 여부에 따른 스케일 팩터 (예: 2.0f)
      */
-    TrackingResult reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor);
+    TrackingResult reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor,
+                                  const cv::Rect& tightObjectRectRel = cv::Rect());
 
-    float verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDescriptors, const cv::Mat& refTemplate); 
+    float verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDescriptors, const cv::Mat& refTemplate);
 
 private:
     cv::Ptr<cv::Tracker> m_tracker; // 추적기 객체 포인터
@@ -65,7 +66,18 @@ private:
 
     int64_t m_frameCount = 0; // 프레임 카운터 (템플릿 업데이트 주기 관리용)
 
+    // 표적 크기 기반 모드 스위칭(reinitTracker) 오탐 방지용:
+    // 노이즈성 컨투어 측정 한 번만으로 KCF를 통째로 재시작하지 않도록,
+    // 같은 판정이 연속으로 나올 때만 실제 전환을 수행한다.
+    int m_smallSizeStreak = 0;
+    int m_largeSizeStreak = 0;
+    static const int REINIT_CONFIRM_STREAK = 2;
+
     float verifyTarget(const cv::Mat& currentROI, const cv::Mat& refTemplate, const cv::Mat& refDescriptors);
     float calculateORBConfidence(const cv::Mat& currentROI, const cv::Mat& refDescriptors);
     float calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& refTemplate);
+
+    // reinitTracker 직전 안전장치: outBbox가 직전 프레임(m_lastBbox) 대비
+    // 한 프레임 만에 비정상적으로 멀리 튀었다면(KCF 오검출 가능성) 재시작을 보류한다.
+    bool isReinitPositionSane(const cv::Rect& newBox) const;
 };
