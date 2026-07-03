@@ -27,7 +27,8 @@ public:
 private:
     cv::VideoCapture cap_;      // OpenCV 캡처 객체
     uint64_t frame_count_;      // 프레임 번호 카운트 [cite: 446, 458]
-    
+    bool m_isFileMode = false;  // true면 영상 파일 재생 모드 (재현 가능한 테스트용)
+
     // 타임스탬프 획득용 보조 함수 [cite: 443]
     uint64_t getCurrentTimestampMs();
 };

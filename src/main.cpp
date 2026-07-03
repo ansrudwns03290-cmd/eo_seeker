@@ -2,6 +2,7 @@
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <iomanip>
+#include <string>
 
 #include "input/VideoInput.hpp"
 #include "common/Frame.hpp"
@@ -13,7 +14,11 @@
 #include "control/ControlCommand.hpp"
 #include "hardware_output/ServoOutput.hpp"
 
-int main() {
+// 실행 인자 규격 (재현 가능한 회귀 테스트용):
+//   인자 없음                          -> 라이브 카메라(0번) 사용, ROI는 마우스로 직접 선택
+//   <영상경로>                         -> 해당 영상 파일 재생, ROI는 마우스로 직접 선택
+//   <영상경로> <x> <y> <w> <h>         -> 영상 파일 재생 + ROI 좌표 고정 (매번 동일한 조건으로 테스트 가능)
+int main(int argc, char** argv) {
     // 1. 모듈 객체 생성
     VideoInput video_input;
     Preprocessor preprocessor;
@@ -23,22 +28,35 @@ int main() {
     FsmModule fsm;
     ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
     ServoOutput servo_output(0.0, 180.0, 30.0, 150.0);
-    
-    // 2. 카메라 열기
-    if (!video_input.open(0)) {
-        std::cerr << "[Error] 카메라를 열 수 없습니다." << std::endl;
+
+    // 2. 영상 소스 열기: 인자로 영상 경로가 주어지면 파일 재생, 없으면 라이브 카메라
+    bool useFile = (argc > 1);
+    bool opened  = useFile ? video_input.openFile(argv[1]) : video_input.open(0);
+
+    if (!opened) {
+        std::cerr << "[Error] " << (useFile ? "영상 파일을 열 수 없습니다: " + std::string(argv[1])
+                                             : "카메라를 열 수 없습니다.")
+                  << std::endl;
         return -1;
     }
 
-    std::cout << "=== EO Seeker 실행 ===" << std::endl;
+    std::cout << "=== EO Seeker 실행 (" << (useFile ? "파일 재생: " + std::string(argv[1]) : "라이브 카메라")
+              << ") ===" << std::endl;
 
     Frame current_frame;
     cv::Rect target_box;
 
     // 3. 초기 ROI 설정을 위한 프레임 획득
     if (video_input.read(current_frame)) {
-        target_box = cv::selectROI("Original & Tracking", current_frame.image, false);
-        
+        // 좌표 4개(x y w h)가 함께 주어지면 마우스 선택 없이 고정 ROI 사용
+        if (argc > 5) {
+            target_box = cv::Rect(std::stoi(argv[2]), std::stoi(argv[3]),
+                                   std::stoi(argv[4]), std::stoi(argv[5]));
+            std::cout << "[Init] 고정 ROI 사용: " << target_box << std::endl;
+        } else {
+            target_box = cv::selectROI("Original & Tracking", current_frame.image, false);
+        }
+
         if (target_box.width > 0 && target_box.height > 0) {
             /*tracker 초기화 및 초기 표적 등록*/
             // 이미지 경계 안전 처리
@@ -92,7 +110,7 @@ int main() {
             fsm.forceSetState(FSMState::TRACK); // 초기 상태 설정
 
             std::cout << "[Init] Target & Tracker Registered!" << std::endl;
-            std::cout << "Initial Target Box size: " << target_box.width << " x " << target_box.height << std::endl;
+            std::cout << "Initial Target Box info: " << target_box.x << ", " << target_box.y << ", " << target_box.width << ", " << target_box.height << std::endl;
         }
     } else {
         std::cout << "[Error] 초기 프레임을 읽어올 수 없습니다." << std::endl;

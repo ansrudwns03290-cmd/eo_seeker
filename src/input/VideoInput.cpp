@@ -34,6 +34,9 @@ bool VideoInput::openFile(const std::string& path) {
         std::cerr << "[Error] Failed to open video file: " << path << std::endl;
         return false;
     }
+
+    m_isFileMode = true; // 재현 가능한 테스트를 위해 파일 재생 모드로 전환
+
     return cap_.isOpened();
 }
 
@@ -46,12 +49,25 @@ bool VideoInput::read(Frame& frame) {
         return false;
     }
 
+    // 파일 재생 모드: cap_.set(CAP_PROP_FRAME_WIDTH/HEIGHT)는 이미 인코딩된
+    // 파일에는 적용되지 않으므로, 실제 카메라(640x480)와 동일한 조건으로
+    // 테스트하기 위해 여기서 명시적으로 리사이즈한다.
+    if (m_isFileMode && (img.cols != 640 || img.rows != 480)) {
+        cv::resize(img, img, cv::Size(640, 480));
+    }
+
     // 데이터 구조(Frame.hpp) 규격에 따른 패키징 [cite: 61, 375]
     frame.image = img;
     frame.width = img.cols;
     frame.height = img.rows;
-    frame.frame_count = frame_count_++;        // 64비트 일련번호 부여 
-    frame.timestamp_ms = getCurrentTimestampMs(); // 정밀 타임스탬프 기록 [cite: 443]
+    frame.frame_count = frame_count_++;        // 64비트 일련번호 부여
+
+    // 파일 재생 모드에서는 처리 속도에 좌우되는 실시간 타임스탬프 대신
+    // 영상 자체의 타임코드(CAP_PROP_POS_MSEC)를 사용해, 실행할 때마다
+    // dt/칼만 필터 계산이 항상 동일하게 재현되도록 한다.
+    frame.timestamp_ms = m_isFileMode
+        ? static_cast<uint64_t>(cap_.get(cv::CAP_PROP_POS_MSEC))
+        : getCurrentTimestampMs(); // 정밀 타임스탬프 기록 [cite: 443]
     frame.is_valid = true;
 
     return true;
