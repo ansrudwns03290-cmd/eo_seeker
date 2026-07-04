@@ -144,6 +144,13 @@ private:
 //   <영상경로>                         -> 해당 영상 파일 재생, ROI는 마우스로 직접 선택
 //   <영상경로> <x> <y> <w> <h>         -> 영상 파일 재생 + ROI 좌표 고정 (매번 동일한 조건으로 테스트 가능)
 int main(int argc, char** argv) {
+    // [검증용 스위치] 칼만 필터의 관성(예측 의존)이 "표적을 못 따라가는" 문제의 원인인지
+    // 확인하기 위한 임시 진단용 플래그.
+    // true  -> 칼만 보정값 대신 KCF 원시 측정 좌표를 그대로 서보/로그(estimated_pos)에 사용
+    // false -> 원래 동작(칼만 보정값 사용)으로 복귀
+    // 검증이 끝나면 false로 되돌리거나 이 스위치와 관련 분기를 제거할 것.
+    const bool DEBUG_USE_RAW_KCF_POS = true;
+
     // 0. 이 시점부터의 모든 콘솔 출력을 로그 파일에도 자동 저장 (반드시 가장 먼저 생성)
     FileLogger file_logger(argc, argv);
 
@@ -321,7 +328,10 @@ int main(int argc, char** argv) {
                     cv::Point2f kcf_center(res.bbox.x + res.bbox.width / 2.0f, 
                                            res.bbox.y + res.bbox.height / 2.0f);
 
-                    estimated_pos = state_estimator.update(kcf_center);
+                    cv::Point2f kalman_corrected_pos = state_estimator.update(kcf_center);
+                    // [검증용] 플래그가 켜져 있으면 칼만 보정값 대신 KCF 원시 좌표를 그대로 사용.
+                    // state_estimator.update()는 그대로 호출해 내부 속도 추정 등은 계속 정상 갱신됨.
+                    estimated_pos = DEBUG_USE_RAW_KCF_POS ? kcf_center : kalman_corrected_pos;
                     estimated_vel = state_estimator.getEstimatedVelocity();
 
                     fsm.setTargetBox(res.bbox);
