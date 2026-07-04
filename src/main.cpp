@@ -20,6 +20,7 @@
 #include "fsm/FsmModule.hpp"
 #include "control/ControlCommand.hpp"
 #include "hardware_output/ServoOutput.hpp"
+#include "common/DebugConfig.hpp"
 
 // ============================================================
 // [로그 자동 저장] 콘솔에 찍히는 모든 출력을 화면에도 보여주는 동시에
@@ -154,6 +155,13 @@ int main(int argc, char** argv) {
     // 0. 이 시점부터의 모든 콘솔 출력을 로그 파일에도 자동 저장 (반드시 가장 먼저 생성)
     FileLogger file_logger(argc, argv);
 
+    // [디버그] 파이프라인 중간 이미지 저장 폴더 준비.
+    // AcquisitionManager/Tracker 등 다른 모듈에서도 이 폴더에 저장하므로 가장 먼저 생성해둔다.
+    if (DebugConfig::kEnableImageDump) {
+        std::error_code dbg_ec;
+        std::filesystem::create_directories(DebugConfig::kDebugImageDir, dbg_ec);
+    }
+
     // 1. 모듈 객체 생성
     VideoInput video_input;
     Preprocessor preprocessor;
@@ -245,7 +253,7 @@ int main(int argc, char** argv) {
             fsm.forceSetState(FSMState::TRACK); // 초기 상태 설정
 
             std::cout << "[Init] Target & Tracker Registered!" << std::endl;
-            std::cout << "Initial Target Box info: " << target_box.x << ", " << target_box.y << ", " << target_box.width << ", " << target_box.height << std::endl;
+            std::cout << "Initial Target Box info: \"" << target_box.x << "\", \"" << target_box.y << "\", \"" << target_box.width << "\", \"" << target_box.height << "\"" << std::endl;
         }
     } else {
         std::cout << "[Error] 초기 프레임을 읽어올 수 없습니다." << std::endl;
@@ -306,6 +314,13 @@ int main(int argc, char** argv) {
             } else {
                 processed_img = current_frame.image.clone();
             }
+        }
+
+        // [디버그] 전처리 결과(흑백 변환 후 이미지)를 10프레임마다 저장.
+        // 노출/블러/색공간 문제로 인해 이후 단계(ORB, NCC)가 나빠지는 건 아닌지 확인용.
+        if (DebugConfig::kEnableImageDump && current_frame.frame_count % 10 == 0) {
+            cv::imwrite(DebugConfig::kDebugImageDir + "preprocessed_f" + std::to_string(current_frame.frame_count) + ".png",
+                        processed_img);
         }
 
         /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
@@ -394,12 +409,14 @@ int main(int argc, char** argv) {
                 tempBox = tempBox & cv::Rect(0, 0, current_frame.width, current_frame.height); // 이미지 경계 안전 처리
 
                 cv::Mat candidateROI = processed_img(tempBox); // 후보 영역 이미지 조각 추출
-            
-                // 디버깅: 후보 이미지 저장
-                
-                // cv::imwrite("C:/eo_seeker/debug_images/candidate_roi_" + std::to_string(current_frame.frame_count) + ".png", candidateROI);
-                std::cout << "후보 이미지 저장" << std::endl;
-                
+
+                // [디버그] REACQUIRE 검증 대상 후보 이미지 저장.
+                // 실제로 표적을 담고 있는 영역인지, 아니면 배경/노이즈를 표적으로 착각한 건지 확인용.
+                if (DebugConfig::kEnableImageDump) {
+                    cv::imwrite(DebugConfig::kDebugImageDir + "reacquire_candidate_f" + std::to_string(current_frame.frame_count) + ".png",
+                                candidateROI);
+                }
+
                 float v_score = tracker.verifyCandidate(candidateROI, acq_manager.getTargetDescriptors(),
                                                         acq_manager.getTargetTemplate()); // 후보 검증 수행 (KCF 기반)
                 std::cout << "DEBUG: 후보 검증 점수 = " << v_score << std::endl;
@@ -495,8 +512,13 @@ int main(int argc, char** argv) {
         
         // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
         cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
-        cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f; 
+        cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f;
         cv::arrowedLine(display_img, estimated_pos, velocity_vector_end, cv::Scalar(255, 100, 0), 2);
+
+        // [디버그] 칼만 보정 전 순수 예측 위치(predicted_pos)를 노란 점으로 별도 표시.
+        // estimated_pos(파란 점, 보정값)와의 간격이 벌어질수록 예측이 실제 표적을 놓치고
+        // 있다는 뜻이라, 탐색 반경/재획득 실패 원인을 눈으로 바로 판단하는 데 쓴다.
+        cv::circle(display_img, predicted_pos, 4, cv::Scalar(0, 255, 255), -1);
 
             cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
@@ -507,6 +529,13 @@ int main(int argc, char** argv) {
         cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(255, 255, 0), 1);
         cv::imshow("Tracking Test", display_img);
+
+        // [디버그] 최종 오버레이 프레임(bbox, FSM 상태, 추정/예측 위치)을 10프레임마다 저장.
+        // 전체 파이프라인이 그 순간 실제로 뭘 보고 있었는지 최종 확인용.
+        if (DebugConfig::kEnableImageDump && current_frame.frame_count % 10 == 0) {
+            cv::imwrite(DebugConfig::kDebugImageDir + "final_overlay_f" + std::to_string(current_frame.frame_count) + ".png",
+                        display_img);
+        }
 
         if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
 

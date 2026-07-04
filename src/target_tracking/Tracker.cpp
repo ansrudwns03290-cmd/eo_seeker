@@ -1,4 +1,5 @@
 ﻿#include "target_tracking/Tracker.hpp"
+#include "common/DebugConfig.hpp"
 #include <iostream>
 #include <algorithm>
 
@@ -174,9 +175,19 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
 
                 // 2) 이진화 및 노이즈 제거
                 cv::Mat binImg;
-                cv::threshold(grayROI, binImg, 70, 255, cv::THRESH_BINARY | cv::THRESH_OTSU); 
+                cv::threshold(grayROI, binImg, 70, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
                 cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
                 cv::morphologyEx(binImg, binImg, cv::MORPH_OPEN, kernel);
+
+                // [디버그] 30프레임 주기 템플릿 갱신 시점에 실제로 보고 있는 크롭과
+                // 컨투어 분리용 이진화 결과를 저장. New ORB Keypoints가 0으로 찍히는 원인이
+                // (a) currentROI 자체가 이상한지 (b) Otsu 이진화가 물체를 못 잡는지 구분 가능.
+                if (DebugConfig::kEnableImageDump) {
+                    cv::imwrite(DebugConfig::kDebugImageDir + "tracker_update_currentROI_f" + std::to_string(m_frameCount) + ".png",
+                                currentROI);
+                    cv::imwrite(DebugConfig::kDebugImageDir + "tracker_update_binary_f" + std::to_string(m_frameCount) + ".png",
+                                binImg);
+                }
 
                 // 3) 외곽선 기반 표적 실측
                 std::vector<std::vector<cv::Point>> contours;
@@ -279,6 +290,20 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                         result.newDescriptors = newDescriptors;
 
                         std::cout << "[Tracker] Template Update Triggered. New ORB Keypoints: " << kp.size() << std::endl;
+
+                        // [디버그] ORB 추출에 실제로 들어간 크롭(배경 제외 시도 결과)과 키포인트 시각화 저장.
+                        // orbSourceROI가 currentROI 전체인지 tightRoi로 좁혀졌는지, 그리고 그 크롭이
+                        // 비어있거나 무늬 없는 영역인지를 여기서 바로 확인할 수 있다.
+                        if (DebugConfig::kEnableImageDump) {
+                            cv::imwrite(DebugConfig::kDebugImageDir + "tracker_update_orbSource_f" + std::to_string(m_frameCount) + ".png",
+                                        orbSourceROI);
+                            if (!orbSourceROI.empty()) {
+                                cv::Mat kpVis;
+                                cv::drawKeypoints(orbSourceROI, kp, kpVis, cv::Scalar(0, 255, 0));
+                                cv::imwrite(DebugConfig::kDebugImageDir + "tracker_update_keypoints_f" + std::to_string(m_frameCount) + ".png",
+                                            kpVis);
+                            }
+                        }
                     }
                 }
             }
@@ -399,8 +424,6 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
 
     static int cnt = 0;
     cv::matchTemplate(resizedROI, refTemplate, res, cv::TM_CCOEFF_NORMED);
-    // cv::imwrite("C:/eo_seeker/debug_images/resized_roi" + std::to_string(cnt++) + ".png", resizedROI); // 디버그용 후보 이미지 저장
-    // cv::imwrite("C:/eo_seeker/debug_images/target_template" + std::to_string(cnt) + ".png", refTemplate); // 디버그용 후보 이미지 저장
         
     double minVal, maxVal;
     cv::minMaxLoc(res, &minVal, &maxVal);

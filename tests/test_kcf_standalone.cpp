@@ -33,7 +33,8 @@ int main(int argc, char** argv) {
     std::string videoPath = argv[1];
 
     // main.cpp에서 test2.mp4에 쓰던 기본값과 동일
-    cv::Rect initBox(382, 190, 175, 189);
+    //cv::Rect initBox(382, 190, 175, 189); // test2
+    cv::Rect initBox(416, 247, 180, 171); // test3
     if (argc >= 6) {
         initBox = cv::Rect(std::stoi(argv[2]), std::stoi(argv[3]),
                             std::stoi(argv[4]), std::stoi(argv[5]));

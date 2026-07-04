@@ -1,5 +1,6 @@
 ﻿#include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
+#include "common/DebugConfig.hpp"
 
 AcquisitionManager::AcquisitionManager() {
     // ORB 특징점 추출기 초기화
@@ -27,12 +28,21 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
 
+    // [디버그] 물체 분리에 쓰인 원본 크롭과 Otsu 이진화 마스크 저장.
+    // ORB Keypoints가 0으로 나오는 문제를 진단할 때, 여기서 물체 영역이 제대로
+    // 분리됐는지(마스크가 텅 비었거나 표적과 무관한 영역을 잡았는지) 눈으로 바로 확인 가능.
+    if (DebugConfig::kEnableImageDump) {
+        cv::imwrite(DebugConfig::kDebugImageDir + "init_roi_raw.png", roiImg);
+        cv::imwrite(DebugConfig::kDebugImageDir + "init_binary_mask.png", binary);
+    }
+
     // 2. 물체 윤곽선 추출 및 정밀 모델링
+    cv::Mat featureSourceImg; // [디버그용] ORB 추출에 실제로 들어간 이미지를 branch와 무관하게 기록
     cv::Rect actualObjectRect;
     if (findLargestObject(binary, actualObjectRect)) {
         cv::Mat objectOnly = roiImg(actualObjectRect);
-        m_targetTemplate = buildTemplate(roiImg); 
-        
+        m_targetTemplate = buildTemplate(roiImg);
+
         cv::Mat objectGray;
         if (objectOnly.channels() == 3)
             cv::cvtColor(objectOnly, objectGray, cv::COLOR_BGR2GRAY);
@@ -40,16 +50,18 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
             objectGray = objectOnly;
         m_orb->detectAndCompute(objectGray, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(actualObjectRect.width) / actualObjectRect.height;
-        
+
         m_isFeatureRich = (m_targetKeypoints.size() >= 10);
 
         std::cout << "[Acquisition] Mode: " << (m_isFeatureRich ? "ORB-Rich" : "Template-Only") << std::endl;
+        featureSourceImg = objectGray;
     } else {
         // 물체 분리 실패 시 박스 전체 사용
         m_targetTemplate = buildTemplate(roiImg); // gray 변환만 수행
         m_orb->detectAndCompute(roiImg, cv::noArray(), m_targetKeypoints, m_targetDescriptors);
         m_targetRatio = static_cast<double>(roiImg.cols) / roiImg.rows;
         std::cout << "[Acquisition] Target Registered (Box Mode)" << std::endl;
+        featureSourceImg = roiImg;
     }
 
     // 드리프트 검증용 원본 스냅샷 보관 (updateTargetModel에서 절대 덮어쓰지 않음)
@@ -57,6 +69,18 @@ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     m_originalDescriptors = m_targetDescriptors.clone();
 
     std::cout << "[Acquisition: Debug] Extracted ORB Keypoints: " << m_targetKeypoints.size() << std::endl;
+
+    // [디버그] 최종 NCC 템플릿 + ORB 추출에 실제로 쓰인 이미지 + 키포인트 시각화 저장
+    if (DebugConfig::kEnableImageDump) {
+        cv::imwrite(DebugConfig::kDebugImageDir + "init_template.png", m_targetTemplate);
+        if (!featureSourceImg.empty()) {
+            cv::imwrite(DebugConfig::kDebugImageDir + "init_orb_source.png", featureSourceImg);
+
+            cv::Mat kpVis;
+            cv::drawKeypoints(featureSourceImg, m_targetKeypoints, kpVis, cv::Scalar(0, 255, 0));
+            cv::imwrite(DebugConfig::kDebugImageDir + "init_orb_keypoints.png", kpVis);
+        }
+    }
 }
 
 /**
@@ -161,7 +185,18 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
     }
 
     cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
-    // cv::imwrite("C:/eo_seeker/debug_images/cropped_search_area.png", croppedSearchImg); // 디버그용 후보 이미지 저장
+
+    // [디버그] LOST 상태에서 실제로 탐색한 영역과, 그 시점에 쓰이고 있던 NCC 템플릿을 저장.
+    // 매 프레임 호출되므로 프레임 카운터를 붙여 시간에 따른 변화를 순서대로 볼 수 있게 한다.
+    static int s_lostSearchCallCount = 0;
+    s_lostSearchCallCount++;
+    if (DebugConfig::kEnableImageDump) {
+        cv::imwrite(DebugConfig::kDebugImageDir + "lost_search_window_" + std::to_string(s_lostSearchCallCount) + ".png",
+                    croppedSearchImg);
+        if (!m_targetTemplate.empty()) {
+            cv::imwrite(DebugConfig::kDebugImageDir + "lost_current_template.png", m_targetTemplate);
+        }
+    }
 
     // 템플릿 매칭 수행
     cv::Mat matchResult;
@@ -189,6 +224,18 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
 
         const int MIN_DESCRIPTOR_COUNT = 7;
         bool verified = (m_targetDescriptors.rows < MIN_DESCRIPTOR_COUNT) ? true : verifyCandidateWithORB(candidateROI);
+
+        // [디버그] NCC 최고점을 넘긴 후보 위치를 탐색 창 위에 박스로 표시해서 저장.
+        // ORB 검증까지 통과했는지 여부를 파일명에 남겨, 실제 표적을 잡았는데 ORB 검증에서
+        // 걸러진 건지 아니면 애초에 엉뚱한 곳을 잡은 건지 구분할 수 있게 한다.
+        if (DebugConfig::kEnableImageDump) {
+            cv::Mat candidateVis;
+            cv::cvtColor(croppedSearchImg, candidateVis, cv::COLOR_GRAY2BGR);
+            cv::rectangle(candidateVis, bestCandidate, cv::Scalar(0, 255, 0), 2);
+            cv::imwrite(DebugConfig::kDebugImageDir + "lost_best_candidate_" + std::to_string(s_lostSearchCallCount)
+                            + (verified ? "_verified" : "_rejected") + ".png",
+                        candidateVis);
+        }
 
         if (verified) {
             // 전체 좌표계로 변환
