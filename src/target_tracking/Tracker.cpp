@@ -305,22 +305,46 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
 float Tracker::verifyTarget(const cv::Mat& currentROI, const cv::Mat& refTemplate, const cv::Mat& refDescriptors) {
     if (currentROI.empty()) return 0.0f;
 
-    // 1. 특징점 데이터가 있다면 ORB 시도
-    const int MIN_DESCRIPTOR_COUNT = 7; 
-    
-    if (refDescriptors.rows >= MIN_DESCRIPTOR_COUNT) {
-        float orbScore = calculateORBConfidence(currentROI, refDescriptors);
-        
-        // ORB 매칭 결과가 유의미하다면 즉시 반환
-        if (orbScore > 0.1f) return orbScore; 
+    // [수정] 기존엔 ORB 매칭이 살짝(0.1)만 넘어도 NCC를 보지도 않고 그 값을 그대로 conf로
+    // 반환했다. 그런데 KCF가 배경에 눌러앉은 상태에서도 배경 텍스처가 우연히 ORB 매칭을
+    // 몇 개 만들어내는 경우가 있어서, conf가 계속 거짓으로 높게 나오는 문제가 있었다.
+    // verifyCandidate()(REACQUIRE 검증용)에 이미 있던 "NCC 과락이면 ORB와 무관하게 저점"
+    // 융합 로직을 TRACK 상태의 conf 계산에도 동일하게 적용한다.
+    const int MIN_DESCRIPTOR_COUNT = 7;
+    bool hasDescriptors = (refDescriptors.rows >= MIN_DESCRIPTOR_COUNT);
+    bool hasTemplate = !refTemplate.empty();
+
+    if (!hasDescriptors && !hasTemplate) {
+        return 0.2f; // 비교 기준 자체가 없는 비정상 상황
     }
 
-    // 2. 특징점이 없거나 ORB 점수가 너무 낮으면 NCC 시도
-    if (!refTemplate.empty()) {
-        return calculateNCCConfidence(currentROI, refTemplate);
+    // 1. NCC 먼저 정직하게 측정 (원본과의 형태/밝기 유사도)
+    float nccScore = hasTemplate ? calculateNCCConfidence(currentROI, refTemplate) : 0.0f;
+
+    // 특징점 기준 자체가 빈약하면(원본이 무늬 없는 표적) NCC만으로 판단
+    if (!hasDescriptors) {
+        return nccScore;
     }
 
-    return 0.2f; // 둘 다 실패 시
+    // 2. [핵심] NCC가 과락이면 ORB 매칭 개수가 아무리 많아도 배경의 우연한 매칭일
+    //    가능성이 높으므로 무조건 저점 처리한다.
+    if (hasTemplate && nccScore <= 0.20f) {
+        return 0.0f;
+    }
+
+    float orbScore = calculateORBConfidence(currentROI, refDescriptors);
+
+    if (!hasTemplate) {
+        // 원본 템플릿이 없으면 ORB 단독 판단 (기존 동작 유지)
+        return orbScore;
+    }
+
+    // 3. NCC와 ORB 융합: ORB가 충분히 강하면 두 점수를 섞고, 약하면 NCC 위주로 반영
+    if (orbScore >= 0.40f) {
+        return (orbScore * 0.4f) + (nccScore * 0.6f);
+    } else {
+        return nccScore * 0.7f;
+    }
 }
 
 /**

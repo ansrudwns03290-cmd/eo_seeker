@@ -42,3 +42,9 @@ add_executable(test_servo_output
     src/hardware_output/ServoOutput.cpp
 )
 target_include_directories(test_servo_output PRIVATE include)
+
+# KCF 추적기 단독 검증용 실행 파일
+# AcquisitionManager/StateEstimator/FSM 등 다른 로직 없이 cv::TrackerKCF만으로
+# 같은 영상에서 표적을 따라가는지 확인하기 위한 독립 실행 파일 (OpenCV만 의존)
+add_executable(test_kcf_standalone tests/test_kcf_standalone.cpp)
+target_link_libraries(test_kcf_standalone PRIVATE ${OpenCV_LIBS})

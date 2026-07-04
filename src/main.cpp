@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     // true  -> 칼만 보정값 대신 KCF 원시 측정 좌표를 그대로 서보/로그(estimated_pos)에 사용
     // false -> 원래 동작(칼만 보정값 사용)으로 복귀
     // 검증이 끝나면 false로 되돌리거나 이 스위치와 관련 분기를 제거할 것.
-    const bool DEBUG_USE_RAW_KCF_POS = true;
+    const bool DEBUG_USE_RAW_KCF_POS = false;
 
     // 0. 이 시점부터의 모든 콘솔 출력을 로그 파일에도 자동 저장 (반드시 가장 먼저 생성)
     FileLogger file_logger(argc, argv);
@@ -313,8 +313,13 @@ int main(int argc, char** argv) {
             
             case FSMState::TRACK: {
                 // KCF 추적 수행
+                // [수정] confidence 계산(verifyTarget)이 계속 갱신되는(=드리프트 가능성 있는)
+                // getTargetTemplate/getTargetDescriptors 대신, updateTargetModel이 절대 덮어쓰지
+                // 않는 원본 스냅샷(getOriginalTemplate/getOriginalDescriptors)과 비교하도록 변경.
+                // 그래야 conf가 "최근의 나 자신"이 아니라 "최초 등록된 진짜 표적"과의 유사도를
+                // 반영해서, 드리프트가 나면 실제로 conf가 떨어지고 LOST/REACQUIRE로 전이될 수 있다.
                 Tracker::TrackingResult res = tracker.update(processed_img,
-                acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
+                acq_manager.getOriginalTemplate(), acq_manager.getOriginalDescriptors());
                 isFound = res.success;
 
                 conf = tracker.getConfidence();
