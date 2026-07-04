@@ -328,13 +328,19 @@ int main(int argc, char** argv) {
             
             case FSMState::TRACK: {
                 // KCF 추적 수행
-                // [수정] confidence 계산(verifyTarget)이 계속 갱신되는(=드리프트 가능성 있는)
-                // getTargetTemplate/getTargetDescriptors 대신, updateTargetModel이 절대 덮어쓰지
-                // 않는 원본 스냅샷(getOriginalTemplate/getOriginalDescriptors)과 비교하도록 변경.
-                // 그래야 conf가 "최근의 나 자신"이 아니라 "최초 등록된 진짜 표적"과의 유사도를
-                // 반영해서, 드리프트가 나면 실제로 conf가 떨어지고 LOST/REACQUIRE로 전이될 수 있다.
+                // [재수정] 원본 고정 스냅샷(getOriginalTemplate/getOriginalDescriptors)과만
+                // 비교하도록 했던 이전 변경을 되돌린다. 표적이 회전/드리프트하지 않아도
+                // 빠른 이동으로 인한 모션 블러만으로 원본(정지 상태, 또렷함)과의 NCC 유사도가
+                // 떨어지면서 KCF는 정상 추적 중(success=true)인데도 conf가 0으로 붕괴해
+                // LOST로 잘못 전이되는 문제가 실측(로그+디버그 프레임)으로 확인됐다.
+                // 드리프트 방지는 AcquisitionManager::isStillSimilarToOriginal이
+                // (updateTargetModel 갱신을 허용할지 판단할 때) 원본과의 유사도를 여전히
+                // 검증하므로, conf 계산까지 원본 고정 비교로 이중으로 엄격하게 걸 필요는 없다.
+                // conf는 "최근 갱신된(=최근 흐려진 정도까지 반영된) 템플릿"과 비교해
+                // 자세/블러 변화에는 관대하되, 갱신 자체는 원본 anchor 검증을 통과한 것만
+                // 반영되므로 드리프트 방지 효과는 유지된다.
                 Tracker::TrackingResult res = tracker.update(processed_img,
-                acq_manager.getOriginalTemplate(), acq_manager.getOriginalDescriptors());
+                acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                 isFound = res.success;
 
                 conf = tracker.getConfidence();
