@@ -14,7 +14,7 @@ set(SOURCE_FILES
     src/main.cpp
     src/input/VideoInput.cpp
     src/acquisition/AcquisitionManager.cpp
-    src/target_tracking/tracker.cpp
+    src/target_tracking/Tracker.cpp
     src/fsm/FsmModule.cpp
     src/control/ControlCommand.cpp
     src/preprocessing/Preprocessor.cpp
