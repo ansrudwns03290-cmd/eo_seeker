@@ -8,6 +8,6 @@
 // 디버깅이 끝나면 kEnableImageDump만 false로 바꾸면 모든 imwrite 호출이 비활성화된다.
 // ============================================================
 namespace DebugConfig {
-    constexpr bool kEnableImageDump = true;
+    constexpr bool kEnableImageDump = false;
     inline const std::string kDebugImageDir = "C:/eo_seeker/logs/debug/";
 }
