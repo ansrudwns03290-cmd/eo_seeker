@@ -34,18 +34,23 @@ static std::string getGitCommitHash() {
     std::array<char, 64> buffer{};
     std::string result;
 
-    FILE* pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
-    if (!pipe) return "nogit";
+    FILE* pipe;
+    #ifdef _WIN32
+        pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
+    #else
+        pipe = popen("git rev-parse --short HEAD 2>/dev/null", "r");
+    #endif
+        if (!pipe) return "nogit";
 
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
-        result += buffer.data();
-    }
-    _pclose(pipe);
+        while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+            result += buffer.data();
+        }
 
-    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
-        result.pop_back();
-    }
-    return result.empty() ? "nogit" : result;
+    #ifdef _WIN32
+        _pclose(pipe);
+    #else
+        pclose(pipe);
+#endif
 }
 
 // std::cout/std::cerr에 찍히는 내용을 콘솔과 파일 두 곳에 동시에 기록하는 스트림버퍼
