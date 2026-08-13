@@ -51,6 +51,11 @@ static std::string getGitCommitHash() {
     #else
         pclose(pipe);
 #endif
+
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
+        result.pop_back();
+    }
+    return result.empty() ? "nogit" : result;
 }
 
 // std::cout/std::cerr에 찍히는 내용을 콘솔과 파일 두 곳에 동시에 기록하는 스트림버퍼

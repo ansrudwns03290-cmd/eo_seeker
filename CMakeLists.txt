@@ -8,6 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # OpenCV 패키지 찾기
 find_package(OpenCV REQUIRED)
 
+# Raspberry Pi 빌드 여부 (PCA9685 실제 PWM 출력 vs PC 텍스트 스텁)
+# 사용법: cmake --preset pi-debug 또는 -DRASPBERRY_PI_BUILD=ON
+option(RASPBERRY_PI_BUILD "Build with Raspberry Pi hardware output (PCA9685)" OFF)
+
 # 실행 파일 생성
 # 소스 파일이 늘어날 것에 대비해 변수로 관리하면 편합니다.
 set(SOURCE_FILES
@@ -42,6 +46,11 @@ add_executable(test_servo_output
     src/hardware_output/ServoOutput.cpp
 )
 target_include_directories(test_servo_output PRIVATE include)
+
+if(RASPBERRY_PI_BUILD)
+    target_compile_definitions(eo_seeker PRIVATE RASPBERRY_PI_BUILD)
+    target_compile_definitions(test_servo_output PRIVATE RASPBERRY_PI_BUILD)
+endif()
 
 # KCF 추적기 단독 검증용 실행 파일
 # AcquisitionManager/StateEstimator/FSM 등 다른 로직 없이 cv::TrackerKCF만으로

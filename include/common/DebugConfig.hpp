@@ -9,5 +9,5 @@
 // ============================================================
 namespace DebugConfig {
     constexpr bool kEnableImageDump = false;
-    inline const std::string kDebugImageDir = "C:/eo_seeker/logs/debug/";
+    inline const std::string kDebugImageDir = "logs/debug/";
 }

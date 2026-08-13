@@ -1,0 +1,45 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 23, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "windows-debug",
+            "displayName": "Windows Debug (Ninja/MSVC)",
+            "inherits": "base",
+            "generator": "Ninja",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "pi-debug",
+            "displayName": "Raspberry Pi Debug",
+            "inherits": "base",
+            "generator": "Unix Makefiles",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "RASPBERRY_PI_BUILD": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "windows-debug", "configurePreset": "windows-debug" },
+        { "name": "pi-debug", "configurePreset": "pi-debug" }
+    ]
+}
