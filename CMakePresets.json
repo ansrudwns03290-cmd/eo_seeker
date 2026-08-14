@@ -37,6 +37,31 @@
             }
         },
         {
+            "name": "windows-release",
+            "displayName": "Windows Release (Ninja/MSVC)",
+            "inherits": "base",
+            "generator": "Ninja",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "environment": {
+                "VCPKG_ROOT": "C:/vcpkg",
+                "VCPKG_BINARY_SOURCES": "clear;files,C:/vcpkg-cache,readwrite"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-windows",
+                "VCPKG_HOST_TRIPLET": "x64-windows",
+                "VCPKG_BUILD_TYPE": "release",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
             "name": "pi-debug",
             "displayName": "Raspberry Pi Debug",
             "inherits": "base",
@@ -53,6 +78,7 @@
     ],
     "buildPresets": [
         { "name": "windows-debug", "configurePreset": "windows-debug" },
+        { "name": "windows-release", "configurePreset": "windows-release" },
         { "name": "pi-debug", "configurePreset": "pi-debug" }
     ]
 }
