@@ -21,6 +21,10 @@
                 "value": "x64",
                 "strategy": "external"
             },
+            "environment": {
+                "VCPKG_ROOT": "C:/vcpkg",
+                "VCPKG_BINARY_SOURCES": "clear;files,C:/Users/사용자명/OneDrive/vcpkg-cache,readwrite"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",

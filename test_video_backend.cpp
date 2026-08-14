@@ -5,7 +5,7 @@
 namespace fs = std::filesystem;
 
 int main() {
-    std::string testDir = "test_videos"; // 실제 테스트 영상 폴더 경로로 수정
+    std::string testDir = "C:/eo_seeker/data"; // 실제 테스트 영상 폴더 경로로 수정
 
     for (const auto& entry : fs::directory_iterator(testDir)) {
         if (entry.path().extension() != ".mp4") continue;
