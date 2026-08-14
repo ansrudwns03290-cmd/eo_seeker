@@ -5,7 +5,7 @@
         {
             "name": "opencv4",
             "default-features": false,
-            "features": ["contrib", "highgui", "msmf"]
+            "features": ["contrib", "highgui", "msmf", "win32ui"]
         }
     ]
 }
