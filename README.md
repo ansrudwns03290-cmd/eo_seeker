@@ -40,19 +40,21 @@ cd C:\vcpkg
 
 이 단계는 데스크톱마다 최초 1회만 하면 됩니다.
 
-### 3. vcpkg 바이너리 캐시 공유 설정 (중요 — 빌드 시간을 좌우하는 핵심 단계)
+### 3. vcpkg 바이너리 캐시 설정 (재부팅 시 재빌드 방지)
 
-OpenCV 같은 무거운 패키지를 **어느 데스크톱에서든 매번 처음부터 컴파일하지 않도록**, 빌드 결과물을 클라우드 동기화 폴더에 공유 캐시로 저장합니다. 현재 `CMakePresets.json`에는 계정 `SSAFY` 기준 경로가 이미 설정되어 있습니다:
+OpenCV 같은 무거운 패키지가 **재부팅할 때마다 다시 컴파일되는 걸 막기 위해**, 빌드 결과물을 C 드라이브의 별도 폴더에 캐싱합니다.
 
 ```
-VCPKG_BINARY_SOURCES = clear;files,C:/Users/SSAFY/OneDrive/vcpkg-cache,readwrite
+VCPKG_BINARY_SOURCES = clear;files,C:/vcpkg-cache,readwrite
 ```
 
-- **다른 Windows 계정명을 쓰는 데스크톱이라면, `CMakePresets.json`의 이 경로를 그 계정명에 맞게 직접 수정해야 합니다.**
-- OneDrive(또는 쓰고 계신 다른 클라우드 동기화 폴더) 경로는 모든 데스크톱에서 반드시 로그인 계정이 같아야 경로가 일치합니다.
-- 이 설정을 해두면, **최초 딱 한 번(어느 데스크톱이든 상관없이 한 번)** OpenCV가 실제로 컴파일되고 캐시에 업로드됩니다. 그 이후에는 다른 데스크톱에서 처음 빌드하더라도 캐시에서 그대로 받아오기만 하므로, 처음처럼 오래 걸리지 않습니다.
+이 설정은 `CMakePresets.json`에 이미 포함되어 있어서 별도 환경 변수 설정 없이 그대로 동작합니다.
 
-> 캐시가 적중하려면 두 데스크톱의 **MSVC 컴파일러 버전이 같아야** 합니다(ABI 해시 기준). 버전이 다르면 캐시가 안 맞아 재빌드될 수 있으니, Visual Studio 버전은 데스크톱 간에 최대한 맞춰두는 걸 권장합니다.
+> ⚠️ **이 캐시는 로컬 전용입니다.** 같은 데스크톱에서는 재부팅해도 캐시가 유지되어 재빌드를 피할 수 있지만, **다른 데스크톱과는 공유되지 않습니다.** 새 데스크톱에서는 처음 한 번은 여전히 OpenCV를 처음부터 컴파일해야 합니다 (그 데스크톱만의 최초 1회).
+>
+> 여러 데스크톱 간에도 캐시를 공유하고 싶다면, 이 경로를 OneDrive/Dropbox 같은 클라우드 동기화 폴더로 바꾸면 됩니다 (계정마다 실제 경로가 다르므로 각 데스크톱에 맞게 `CMakePresets.json`을 직접 수정해야 합니다).
+>
+> 캐시가 적중하려면 **MSVC 컴파일러 버전이 같아야** 합니다(ABI 해시 기준). 버전이 다르면 캐시가 안 맞아 재빌드될 수 있습니다.
 
 ### 4. 반드시 "x64 Native Tools Command Prompt"에서 VS Code 실행
 
@@ -89,12 +91,14 @@ VS Code에서 (위 4번 방법으로 열었다면):
     "strategy": "external"
 },
 "environment": {
-    "VCPKG_ROOT": "C:/vcpkg"
+    "VCPKG_ROOT": "C:/vcpkg",
+    "VCPKG_BINARY_SOURCES": "clear;files,C:/vcpkg-cache,readwrite"
 }
 ```
 
 - `architecture`: Ninja처럼 command-line 제너레이터는 CMake가 스스로 컴파일러 환경을 세팅하지 못합니다. 이 필드는 VS Code CMake Tools가 x64용 Visual Studio 환경을 자동으로 준비하도록 하는 힌트입니다. (단, 이 자동 감지가 다중 VS 설치 환경에서 오작동하는 사례가 있어서, 4번 항목의 Native Tools Command Prompt 습관이 실질적으로 더 확실한 안전장치입니다.)
 - `environment.VCPKG_ROOT`: Visual Studio의 Developer Command Prompt를 거치면 `VCPKG_ROOT`가 VS 내장 vcpkg 경로로 덮어써지는 경우가 있어서, 항상 원하는 vcpkg(`C:/vcpkg`)를 쓰도록 명시적으로 고정합니다.
+- `environment.VCPKG_BINARY_SOURCES`: 3번 항목 참고 (재부팅 시 재빌드 방지용 로컬 캐시).
 
 ## 디버거 설정
 
@@ -144,4 +148,5 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
 | `vcpkg install failed`, 경로가 `...VC\vcpkg\...`로 잡힘 | VS Developer Command Prompt가 `VCPKG_ROOT`를 덮어씀 | CMakePresets.json의 `environment.VCPKG_ROOT` 고정 확인 |
 | `LNK1168: 쓰기용으로 열 수 없습니다` | 이전 실행/디버그 세션이 exe를 점유 중 | `Shift+F5`로 디버그 세션 종료, 작업 관리자에서 프로세스 확인 후 재빌드 |
 | 디버그 시작 직후 "Unknown signal"로 멈춤 | GDB가 MSVC 예외 처리 방식을 이해 못함 | `.vscode/settings.json`에 `cmake.debugConfig.type: cppvsdbg` 설정 |
-| 재부팅마다 ffmpeg가 계속 재빌드됨 | MSVC 툴체인 버전이 바뀌며 vcpkg 캐시 ABI 불일치 | 3번 항목의 `VCPKG_BINARY_SOURCES` 공유 캐시 설정 |
+| 같은 데스크톱에서 재부팅마다 ffmpeg/OpenCV가 계속 재빌드됨 | vcpkg 바이너리 캐시 미설정 또는 MSVC 툴체인 버전 변경으로 ABI 불일치 | 3번 항목의 `VCPKG_BINARY_SOURCES` 로컬 캐시 설정 확인 |
+| 새 데스크톱 첫 빌드가 오래 걸림 | 로컬 캐시(`C:/vcpkg-cache`)는 데스크톱 간 공유되지 않음 | 정상입니다 — 그 데스크톱의 최초 1회에 한함. 데스크톱 간 공유가 필요하면 클라우드 동기화 폴더로 전환 |

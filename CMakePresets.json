@@ -23,7 +23,7 @@
             },
             "environment": {
                 "VCPKG_ROOT": "C:/vcpkg",
-                "VCPKG_BINARY_SOURCES": "clear;files,C:/Users/SSAFY/OneDrive/vcpkg-cache,readwrite"
+                "VCPKG_BINARY_SOURCES": "clear;files,C:/vcpkg-cache,readwrite"
             },
             "condition": {
                 "type": "equals",
