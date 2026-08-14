@@ -102,8 +102,9 @@ VS Code에서 (위 4번 방법으로 열었다면):
 
 ## 디버거 설정
 
-MSVC로 빌드된 실행 파일은 GDB가 아니라 Visual Studio 디버거로 디버깅해야 합니다. `.vscode/settings.json`에 아래가 포함되어 있어야 합니다:
+MSVC로 빌드된 실행 파일은 GDB가 아니라 Visual Studio 디버거로 디버깅해야 합니다.
 
+**전역 기본값** — `.vscode/settings.json`:
 ```json
 {
     "cmake.useCMakePresets": "always",
@@ -113,6 +114,8 @@ MSVC로 빌드된 실행 파일은 GDB가 아니라 Visual Studio 디버거로 �
     }
 }
 ```
+
+> ⚠️ **`.vscode/launch.json`에 이름이 지정된 디버그 설정이 별도로 있으면, 위 전역 기본값보다 그쪽이 우선 적용됩니다.** 실제로 `eo_seeker` 타겟용 `launch.json`이 `type: cppdbg` / `MIMode: gdb`로 따로 박혀 있어서, `settings.json`만 고쳐서는 반영이 안 됐던 적이 있습니다. 새 디버그 타겟(테스트 실행 파일 등)을 `launch.json`에 추가할 때는 `type`을 반드시 `cppvsdbg`로 지정하세요.
 
 GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시작 직후 "Unknown signal"로 멈추는 증상이 발생합니다.
 
@@ -126,7 +129,7 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
         {
             "name": "opencv4",
             "default-features": false,
-            "features": ["contrib", "highgui", "msmf"]
+            "features": ["contrib", "highgui", "msmf", "win32ui"]
         }
     ]
 }
@@ -134,7 +137,8 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
 
 - `default-features: false` — dnn/gapi/directml 등 안 쓰는 무거운 기본 기능을 꺼서 빌드 시간 단축
 - `contrib` — Tracker 모듈에서 KCF/CSRT 등 opencv_contrib 알고리즘 사용
-- `highgui` — `imshow`/`waitKey` 등 디버그용 화면 출력
+- `highgui` — `imshow`/`selectROI`/`waitKey` 등 창 관련 **API 껍데기**
+- `win32ui` — 그 API가 실제로 Windows 화면에 창을 그리는 **구현체**. `highgui`만 있고 이게 빠지면, 함수 호출은 되지만 실행 시 `"The function is not implemented"` 에러가 나며 창이 뜨지 않습니다. (`default-features: false`로 최적화하면서 한 번 빠뜨렸던 항목이라 별도로 명시)
 - `msmf` — Windows Media Foundation 비디오 백엔드. 현재 보유 중인 테스트 영상 전부가 이 백엔드만으로 정상 재생 확인됨 (`test_video_backend.cpp`로 검증)
 - **ffmpeg는 의도적으로 제외**했습니다. Windows PC 테스트 환경에서는 불필요하며, vcpkg 재빌드 시간을 가장 크게 잡아먹는 항목이었습니다. 향후 MSMF로 안 열리는 영상(다른 코덱 등)이 생기면 그때 다시 추가 검토합니다.
 
@@ -147,6 +151,7 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
 | `LNK4272`, `x64 라이브러리가 x86 대상과 충돌` | 잘못된(x86) VS 툴체인으로 링크됨 | 4번 항목대로 x64 Native Tools Command Prompt에서 VS Code 실행 |
 | `vcpkg install failed`, 경로가 `...VC\vcpkg\...`로 잡힘 | VS Developer Command Prompt가 `VCPKG_ROOT`를 덮어씀 | CMakePresets.json의 `environment.VCPKG_ROOT` 고정 확인 |
 | `LNK1168: 쓰기용으로 열 수 없습니다` | 이전 실행/디버그 세션이 exe를 점유 중 | `Shift+F5`로 디버그 세션 종료, 작업 관리자에서 프로세스 확인 후 재빌드 |
-| 디버그 시작 직후 "Unknown signal"로 멈춤 | GDB가 MSVC 예외 처리 방식을 이해 못함 | `.vscode/settings.json`에 `cmake.debugConfig.type: cppvsdbg` 설정 |
+| 디버그 시작 직후 "Unknown signal"로 멈춤 | GDB가 MSVC 예외 처리 방식을 이해 못함 | `.vscode/launch.json`의 해당 설정 `type`을 `cppvsdbg`로 확인/수정 |
+| `imshow`/`selectROI` 창이 안 뜨고 `"function is not implemented"` 에러 | `highgui`만 있고 `win32ui`(실제 창 렌더링 구현체)가 빠짐 | vcpkg.json features에 `win32ui` 추가 |
 | 같은 데스크톱에서 재부팅마다 ffmpeg/OpenCV가 계속 재빌드됨 | vcpkg 바이너리 캐시 미설정 또는 MSVC 툴체인 버전 변경으로 ABI 불일치 | 3번 항목의 `VCPKG_BINARY_SOURCES` 로컬 캐시 설정 확인 |
 | 새 데스크톱 첫 빌드가 오래 걸림 | 로컬 캐시(`C:/vcpkg-cache`)는 데스크톱 간 공유되지 않음 | 정상입니다 — 그 데스크톱의 최초 1회에 한함. 데스크톱 간 공유가 필요하면 클라우드 동기화 폴더로 전환 |
