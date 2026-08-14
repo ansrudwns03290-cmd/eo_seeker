@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+    
         {
             "name": "eo_seeker 디버그 (CMake Tools 타겟)",
             "type": "cppdbg",

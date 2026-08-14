@@ -4,7 +4,8 @@
     "dependencies": [
         {
             "name": "opencv4",
-            "features": ["contrib", "ffmpeg"]
+            "default-features": false,
+            "features": ["contrib", "ffmpeg", "highgui"]
         }
     ]
 }

@@ -17,6 +17,10 @@
             "displayName": "Windows Debug (Ninja/MSVC)",
             "inherits": "base",
             "generator": "Ninja",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",

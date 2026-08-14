@@ -57,3 +57,7 @@ endif()
 # 같은 영상에서 표적을 따라가는지 확인하기 위한 독립 실행 파일 (OpenCV만 의존)
 add_executable(test_kcf_standalone tests/test_kcf_standalone.cpp)
 target_link_libraries(test_kcf_standalone PRIVATE ${OpenCV_LIBS})
+
+add_executable(test_video_backend test_video_backend.cpp)
+target_link_libraries(test_video_backend PRIVATE ${OpenCV_LIBS})
+target_include_directories(test_video_backend PRIVATE ${OpenCV_INCLUDE_DIRS})
