@@ -1,4 +1,7 @@
 {
     "cmake.useCMakePresets": "always",
-    "cmake.configureOnOpen": true
+    "cmake.configureOnOpen": true,
+    "cmake.debugConfig": {
+        "type": "cppvsdbg"
+    }
 }
