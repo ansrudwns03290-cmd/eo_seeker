@@ -121,6 +121,8 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
 
 ## OpenCV 빌드 옵션 (vcpkg.json)
 
+`vcpkg.json`은 Windows/Linux(Raspberry Pi) 플랫폼별로 opencv4 feature를 다르게 선언합니다. vcpkg 매니페스트는 같은 포트를 `"platform"` 조건과 함께 여러 번 선언할 수 있고, 현재 빌드 중인 트리플렛에 맞는 항목만 골라서 설치합니다.
+
 ```json
 {
     "name": "eo-seeker",
@@ -129,18 +131,39 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
         {
             "name": "opencv4",
             "default-features": false,
-            "features": ["contrib", "highgui", "msmf", "win32ui"]
+            "features": ["contrib", "highgui", "msmf", "win32ui"],
+            "platform": "windows"
+        },
+        {
+            "name": "opencv4",
+            "default-features": false,
+            "features": ["contrib", "highgui", "gtk"],
+            "platform": "linux"
         }
     ]
 }
 ```
 
+**공통 (양쪽 플랫폼)**
 - `default-features: false` — dnn/gapi/directml 등 안 쓰는 무거운 기본 기능을 꺼서 빌드 시간 단축
 - `contrib` — Tracker 모듈에서 KCF/CSRT 등 opencv_contrib 알고리즘 사용
 - `highgui` — `imshow`/`selectROI`/`waitKey` 등 창 관련 **API 껍데기**
-- `win32ui` — 그 API가 실제로 Windows 화면에 창을 그리는 **구현체**. `highgui`만 있고 이게 빠지면, 함수 호출은 되지만 실행 시 `"The function is not implemented"` 에러가 나며 창이 뜨지 않습니다. (`default-features: false`로 최적화하면서 한 번 빠뜨렸던 항목이라 별도로 명시)
+
+**Windows (`platform: "windows"`)**
+- `win32ui` — `highgui`가 실제로 Windows 화면에 창을 그리는 **구현체**. 이게 빠지면 함수 호출은 되지만 실행 시 `"The function is not implemented"` 에러가 나며 창이 뜨지 않습니다.
 - `msmf` — Windows Media Foundation 비디오 백엔드. 현재 보유 중인 테스트 영상 전부가 이 백엔드만으로 정상 재생 확인됨 (`test_video_backend.cpp`로 검증)
-- **ffmpeg는 의도적으로 제외**했습니다. Windows PC 테스트 환경에서는 불필요하며, vcpkg 재빌드 시간을 가장 크게 잡아먹는 항목이었습니다. 향후 MSMF로 안 열리는 영상(다른 코덱 등)이 생기면 그때 다시 추가 검토합니다.
+- **ffmpeg는 의도적으로 제외**했습니다. Windows PC 테스트 환경에서는 불필요하며, vcpkg 재빌드 시간을 가장 크게 잡아먹는 항목이었습니다.
+
+**Linux / Raspberry Pi (`platform: "linux"`)**
+- `win32ui`/`msmf`는 Windows 전용 API라 Linux 트리플렛에서는 애초에 빌드되지 않습니다. 예전에는 이 features가 플랫폼 구분 없이 고정되어 있어서, `pi-debug` 프리셋으로 Configure하면 vcpkg install 단계에서부터 실패했습니다.
+- 대신 `gtk`를 넣어 `highgui`의 창 렌더링 구현체로 사용합니다.
+
+> ⚠️ **Pi 사전 준비**: `gtk` feature를 빌드하려면 Pi에 GTK 개발 헤더가 먼저 설치되어 있어야 합니다.
+> ```bash
+> sudo apt update
+> sudo apt install libgtk-3-dev
+> ```
+> 이 패키지 없이 `cmake --preset pi-debug`를 실행하면 vcpkg install 단계에서 gtk 관련 오류로 멈춥니다.
 
 ---
 
@@ -152,6 +175,8 @@ GDB로 붙으면 MSVC의 예외 처리 방식을 이해하지 못해 실행 시�
 | `vcpkg install failed`, 경로가 `...VC\vcpkg\...`로 잡힘 | VS Developer Command Prompt가 `VCPKG_ROOT`를 덮어씀 | CMakePresets.json의 `environment.VCPKG_ROOT` 고정 확인 |
 | `LNK1168: 쓰기용으로 열 수 없습니다` | 이전 실행/디버그 세션이 exe를 점유 중 | `Shift+F5`로 디버그 세션 종료, 작업 관리자에서 프로세스 확인 후 재빌드 |
 | 디버그 시작 직후 "Unknown signal"로 멈춤 | GDB가 MSVC 예외 처리 방식을 이해 못함 | `.vscode/launch.json`의 해당 설정 `type`을 `cppvsdbg`로 확인/수정 |
-| `imshow`/`selectROI` 창이 안 뜨고 `"function is not implemented"` 에러 | `highgui`만 있고 `win32ui`(실제 창 렌더링 구현체)가 빠짐 | vcpkg.json features에 `win32ui` 추가 |
+| `imshow`/`selectROI` 창이 안 뜨고 `"function is not implemented"` 에러 (Windows) | `highgui`만 있고 `win32ui`(실제 창 렌더링 구현체)가 빠짐 | vcpkg.json의 windows 항목 features에 `win32ui` 포함 여부 확인 |
 | 같은 데스크톱에서 재부팅마다 ffmpeg/OpenCV가 계속 재빌드됨 | vcpkg 바이너리 캐시 미설정 또는 MSVC 툴체인 버전 변경으로 ABI 불일치 | 3번 항목의 `VCPKG_BINARY_SOURCES` 로컬 캐시 설정 확인 |
 | 새 데스크톱 첫 빌드가 오래 걸림 | 로컬 캐시(`C:/vcpkg-cache`)는 데스크톱 간 공유되지 않음 | 정상입니다 — 그 데스크톱의 최초 1회에 한함. 데스크톱 간 공유가 필요하면 클라우드 동기화 폴더로 전환 |
+| Pi에서 `cmake --preset pi-debug` 시 vcpkg install 단계에서 `win32ui`/`msmf` 관련 오류 | vcpkg.json이 플랫폼 구분 없이 Windows 전용 features를 쓰던 예전 상태 | vcpkg.json이 `platform: "windows"` / `platform: "linux"`로 분리되어 있는지 확인 (linux 항목은 `gtk` 사용) |
+| Pi에서 vcpkg install 단계에서 `gtk` 관련 빌드 오류 | GTK 개발 헤더(`libgtk-3-dev`) 미설치 | `sudo apt install libgtk-3-dev` 먼저 실행 후 재시도 |
