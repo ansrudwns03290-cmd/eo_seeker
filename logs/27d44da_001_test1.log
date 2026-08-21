@@ -1,0 +1,21 @@
+[Logger] 로그 저장 경로: C:/eo_seeker/logs\27d44da_001_test1.log
+[FSM] State Machine Initialized. Current: SEARCH
+[ServoOutput] PC 빌드 - 텍스트 출력 스텁 모드로 동작
+[ INFO:0@0.319] global videoio_registry.cpp:251 VideoBackendRegistry VIDEOIO: Enabled backends(8, sorted by priority): FFMPEG(1000); GSTREAMER(990); INTEL_MFX(980); MSMF(970); DSHOW(960); CV_IMAGES(950); CV_MJPEG(940); UEYE(930)
+[ INFO:0@0.319] global backend_plugin.cpp:382 getPluginCandidates Found 3 plugin(s) for FFMPEG
+[ INFO:0@0.320] global plugin_loader.impl.hpp:67 libraryLoad load C:\eo_seeker\build\windows-debug\opencv_videoio_ffmpeg4120_64d.dll => FAILED
+[ INFO:0@0.320] global plugin_loader.impl.hpp:67 libraryLoad load opencv_videoio_ffmpeg4120_64d.dll => FAILED
+[ INFO:0@0.321] global plugin_loader.impl.hpp:67 libraryLoad load opencv_videoio_ffmpeg4120_64.dll => FAILED
+[ INFO:0@0.321] global backend_plugin.cpp:382 getPluginCandidates Found 2 plugin(s) for GSTREAMER
+[ INFO:0@0.321] global plugin_loader.impl.hpp:67 libraryLoad load C:\eo_seeker\build\windows-debug\opencv_videoio_gstreamer4120_64d.dll => FAILED
+[ INFO:0@0.323] global plugin_loader.impl.hpp:67 libraryLoad load opencv_videoio_gstreamer4120_64d.dll => FAILED
+[ INFO:0@0.323] global backend_plugin.cpp:382 getPluginCandidates Found 2 plugin(s) for INTEL_MFX
+[ INFO:0@0.323] global plugin_loader.impl.hpp:67 libraryLoad load C:\eo_seeker\build\windows-debug\opencv_videoio_intel_mfx4120_64d.dll => FAILED
+[ INFO:0@0.324] global plugin_loader.impl.hpp:67 libraryLoad load opencv_videoio_intel_mfx4120_64d.dll => FAILED
+[ INFO:0@0.324] global backend_plugin.cpp:382 getPluginCandidates Found 2 plugin(s) for MSMF
+[ INFO:0@0.324] global plugin_loader.impl.hpp:67 libraryLoad load C:\eo_seeker\build\windows-debug\opencv_videoio_msmf4120_64d.dll => FAILED
+[ INFO:0@0.325] global plugin_loader.impl.hpp:67 libraryLoad load opencv_videoio_msmf4120_64d.dll => FAILED
+[ INFO:0@0.325] global cap_images.cpp:282 icvExtractPattern Pattern: data/test%01d.mp4 @ 1
+[ INFO:0@0.329] global cap_images.cpp:331 open CAP_IMAGES: File is not an image: data/test1.mp4
+[Error] Failed to open video file: data/test1.mp4
+[Error] 영상 파일을 열 수 없습니다: data/test1.mp4

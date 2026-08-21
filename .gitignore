@@ -7,13 +7,11 @@
 !CMakeLists.txt
 *.txt_src
 *.png
-*.md
 
 # 빌드 폴더 무시
 build/
 build_cmake/
 debug_images/
-logs/
 
 # vcpkg manifest 모드가 받아온 라이브러리 (컴퓨터별로 로컬에 생성, 커밋 대상 아님)
 vcpkg_installed/

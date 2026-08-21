@@ -1,0 +1,5 @@
+[Logger] 로그 저장 경로: C:/eo_seeker/logs\a100fab_001_test1.log
+[FSM] State Machine Initialized. Current: SEARCH
+[ServoOutput] PC 빌드 - 텍스트 출력 스텁 모드로 동작
+[ INFO:0@0.300] global videoio_registry.cpp:251 cv::`anonymous-namespace'::VideoBackendRegistry::VideoBackendRegistry VIDEOIO: Enabled backends(10, sorted by priority): FFMPEG(1000); FFMPEG(990); GSTREAMER(980); INTEL_MFX(970); MSMF(960); MSMF(950); DSHOW(940); CV_IMAGES(930); CV_MJPEG(920); UEYE(910)
+=== EO Seeker 실행 (파일 재생: data/test1.mp4) ===

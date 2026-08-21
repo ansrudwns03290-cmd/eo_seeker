@@ -1,0 +1,7 @@
+[Logger] 로그 저장 경로: C:/eo_seeker/logs\14fada3_003_camera.log
+[FSM] State Machine Initialized. Current: SEARCH
+[ServoOutput] PC 빌드 - 텍스트 출력 스텁 모드로 동작
+[ INFO:0@0.059] global videoio_registry.cpp:251 cv::`anonymous-namespace'::VideoBackendRegistry::VideoBackendRegistry VIDEOIO: Enabled backends(6, sorted by priority): FFMPEG(1000); FFMPEG(990); MSMF(980); MSMF(970); CV_IMAGES(960); CV_MJPEG(950)
+[ INFO:0@0.257] global cap_msmf.cpp:1033 CvCapture_MSMF::configureHW MSMF: Using D3D11 video acceleration on GPU device: NVIDIA GeForce RTX 5060 Ti
+[Error] Failed to open camera ID: 0
+[Error] 카메라를 열 수 없습니다.
