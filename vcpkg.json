@@ -5,7 +5,14 @@
         {
             "name": "opencv4",
             "default-features": false,
-            "features": ["contrib", "highgui", "msmf", "win32ui"]
+            "features": ["contrib", "highgui", "msmf", "win32ui"],
+            "platform": "windows"
+        },
+        {
+            "name": "opencv4",
+            "default-features": false,
+            "features": ["contrib", "highgui", "gtk"],
+            "platform": "linux"
         }
     ]
 }
