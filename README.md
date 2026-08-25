@@ -33,9 +33,9 @@ PC(Windows)에서는 OpenCV 기반 소프트웨어 검증만 진행하고, 실�
 > ⚠️ 이 프로젝트의 `CMakePresets.json`은 `VCPKG_ROOT`를 `C:/vcpkg`로 **하드코딩**하고 있습니다. 다른 경로에 설치하면 Configure 단계에서 엉뚱한 vcpkg(Visual Studio 내장 버전 등)를 잡아버려 빌드가 깨집니다. 반드시 아래 경로 그대로 설치하세요.
 
 ```powershell
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-cd C:\vcpkg
-.\bootstrap-vcpkg.bat
+git clone https://github.com/microsoft/vcpkg C:/vcpkg
+cd C:/vcpkg
+./bootstrap-vcpkg.bat
 ```
 
 이 단계는 데스크톱마다 최초 1회만 하면 됩니다.
