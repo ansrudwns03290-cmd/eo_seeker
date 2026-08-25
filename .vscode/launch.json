@@ -3,12 +3,72 @@
     "configurations": [
 
         {
-            "name": "eo_seeker 디버그 (CMake Tools 타겟)",
+            "name": "eo_seeker - test1 (고정 ROI, .roi 프리셋)",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
             "preLaunchTask": "CMake: build",
             "args": ["data/test1.mp4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eo_seeker - test2 (고정 ROI, .roi 프리셋)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "preLaunchTask": "CMake: build",
+            "args": ["data/test2.mp4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eo_seeker - test3 (고정 ROI, .roi 프리셋)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "preLaunchTask": "CMake: build",
+            "args": ["data/test3.mp4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eo_seeker - test4 (고정 ROI, .roi 프리셋)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "preLaunchTask": "CMake: build",
+            "args": ["data/test4.mp4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eo_seeker - test5 (고정 ROI, .roi 프리셋)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "preLaunchTask": "CMake: build",
+            "args": ["data/test5.mp4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eo_seeker - 라이브 카메라 (마우스 ROI)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "preLaunchTask": "CMake: build",
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
