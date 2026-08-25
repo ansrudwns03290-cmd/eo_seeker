@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <iomanip>
@@ -152,8 +152,54 @@ private:
 
 // 실행 인자 규격 (재현 가능한 회귀 테스트용):
 //   인자 없음                          -> 라이브 카메라(0번) 사용, ROI는 마우스로 직접 선택
-//   <영상경로>                         -> 해당 영상 파일 재생, ROI는 마우스로 직접 선택
-//   <영상경로> <x> <y> <w> <h>         -> 영상 파일 재생 + ROI 좌표 고정 (매번 동일한 조건으로 테스트 가능)
+//   <영상경로>                         -> 해당 영상 파일 재생.
+//                                        같은 폴더에 동일한 이름의 .roi 프리셋 파일이 있으면
+//                                        (예: data/test1.mp4 -> data/test1.roi, 내용은 "x y w h")
+//                                        그 좌표를 자동으로 고정 ROI로 사용하고, 없으면 기존처럼
+//                                        마우스로 직접 선택한 뒤 그 좌표를 .roi 파일로 자동 저장해서
+//                                        다음 실행부터는 동일 파일에 대해 마우스 선택 없이 재사용됨
+//   <영상경로> <x> <y> <w> <h>         -> 영상 파일 재생 + ROI 좌표 고정 (커맨드라인 인자가 .roi 프리셋 파일보다 항상 우선, .roi 파일에 저장되지는 않음)
+
+// data/testN.mp4 같은 영상 파일과 같은 폴더에, 같은 이름에 확장자만 .roi인 파일이 있으면
+// "x y w h" 형식의 좌표를 읽어 고정 ROI로 사용한다. 우선순위는 커맨드라인 좌표 인자보다는
+// 낮고 마우스 수동 선택보다는 높다. 파일이 없거나 형식이 잘못되면 false를 반환해서
+// 기존 동작(마우스 선택)으로 자연스럽게 넘어가게 한다.
+static bool tryLoadRoiPreset(const std::string& videoPath, cv::Rect& outBox) {
+    std::filesystem::path presetPath = std::filesystem::path(videoPath).replace_extension(".roi");
+
+    std::ifstream in(presetPath);
+    if (!in.is_open()) {
+        return false; // 프리셋 파일이 없으면 조용히 폴백 (에러 아님)
+    }
+
+    int x, y, w, h;
+    if (!(in >> x >> y >> w >> h)) {
+        std::cerr << "[Warning] ROI 프리셋 파일 형식이 올바르지 않습니다: " << presetPath.string()
+                  << " (\"x y w h\" 정수 4개 필요). 마우스 선택으로 대체합니다." << std::endl;
+        return false;
+    }
+
+    outBox = cv::Rect(x, y, w, h);
+    std::cout << "[Init] ROI 프리셋 파일 로드: " << presetPath.string()
+              << " -> " << outBox << std::endl;
+    return true;
+}
+
+// 마우스로 ROI를 처음 선택했을 때, 다음 실행부터는 동일 파일에 대해 자동으로 재사용할 수
+// 있도록 같은 이름의 .roi 파일로 저장한다. 이 함수는 프리셋 파일이 "없어서" selectROI로
+// 넘어온 경우에만 호출되므로, 기존 프리셋 파일을 실수로 덮어쓸 위험은 없다.
+static void saveRoiPreset(const std::string& videoPath, const cv::Rect& box) {
+    std::filesystem::path presetPath = std::filesystem::path(videoPath).replace_extension(".roi");
+    std::ofstream out(presetPath);
+    if (!out.is_open()) {
+        std::cerr << "[Warning] ROI 프리셋 파일을 저장하지 못했습니다: " << presetPath.string() << std::endl;
+        return;
+    }
+    out << box.x << " " << box.y << " " << box.width << " " << box.height << std::endl;
+    std::cout << "[Init] ROI 프리셋 파일 저장 (다음 실행부터 자동 재사용됨): " << presetPath.string()
+              << " -> " << box << std::endl;
+}
+
 int main(int argc, char** argv) {
     // [검증용 스위치] 칼만 필터의 관성(예측 의존)이 "표적을 못 따라가는" 문제의 원인인지
     // 확인하기 위한 임시 진단용 플래그.
@@ -201,13 +247,22 @@ int main(int argc, char** argv) {
 
     // 3. 초기 ROI 설정을 위한 프레임 획득
     if (video_input.read(current_frame)) {
-        // 좌표 4개(x y w h)가 함께 주어지면 마우스 선택 없이 고정 ROI 사용
+        // 좌표 4개(x y w h)가 함께 주어지면 마우스 선택 없이 고정 ROI 사용 (최우선)
+        cv::Rect presetBox;
         if (argc > 5) {
             target_box = cv::Rect(std::stoi(argv[2]), std::stoi(argv[3]),
                                    std::stoi(argv[4]), std::stoi(argv[5]));
-            std::cout << "[Init] 고정 ROI 사용: " << target_box << std::endl;
+            std::cout << "[Init] 고정 ROI 사용 (커맨드라인 인자): " << target_box << std::endl;
+        } else if (useFile && tryLoadRoiPreset(argv[1], presetBox)) {
+            // 커맨드라인 좌표가 없으면, 같은 이름의 .roi 프리셋 파일을 시도
+            target_box = presetBox;
         } else {
             target_box = cv::selectROI("Original & Tracking", current_frame.image, false);
+
+            // 영상 파일 모드에서 마우스로 처음 선택한 경우, 다음부터 재사용할 수 있도록 자동 저장
+            if (useFile && target_box.width > 0 && target_box.height > 0) {
+                saveRoiPreset(argv[1], target_box);
+            }
         }
 
         if (target_box.width > 0 && target_box.height > 0) {
