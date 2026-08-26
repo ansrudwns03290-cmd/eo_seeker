@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <memory>
 #include <cstdio>
+#include <cstdlib>
 #include <array>
 #include <algorithm>
 
@@ -208,8 +209,20 @@ int main(int argc, char** argv) {
     // 검증이 끝나면 false로 되돌리거나 이 스위치와 관련 분기를 제거할 것.
     const bool DEBUG_USE_RAW_KCF_POS = false;
 
+    // [헤드리스 모드] 환경변수 EO_SEEKER_NO_DISPLAY=1이면 루프 안의 실시간 GUI 갱신
+    // (cv::imshow / cv::waitKey)을 건너뛰고 콘솔 로그(및 DebugConfig::kEnableImageDump로
+    // 저장되는 오버레이 이미지)로만 진행 상황을 확인한다. 초기 ROI 선택(cv::selectROI)은
+    // 이 스위치와 무관하게 그대로 동작한다 — 원격 화면(X11 forwarding 등)으로 딱 한 번만
+    // ROI를 고르고, 이후 루프는 화면 없이 로그만으로 지켜보는 용도.
+    bool showGui = true;
+    if (const char* noDisplayEnv = std::getenv("EO_SEEKER_NO_DISPLAY")) {
+        if (std::string(noDisplayEnv) == "1") showGui = false;
+    }
+
     // 0. 이 시점부터의 모든 콘솔 출력을 로그 파일에도 자동 저장 (반드시 가장 먼저 생성)
     FileLogger file_logger(argc, argv);
+
+    std::cout << "[Config] GUI 실시간 표시: " << (showGui ? "ON" : "OFF (EO_SEEKER_NO_DISPLAY=1)") << std::endl;
 
     // [디버그] 파이프라인 중간 이미지 저장 폴더 준비.
     // AcquisitionManager/Tracker 등 다른 모듈에서도 이 폴더에 저장하므로 가장 먼저 생성해둔다.
@@ -373,7 +386,7 @@ int main(int argc, char** argv) {
         cv::Mat processed_img;
         if (!preprocessor.process(current_frame, processed_img)) {
             std::cout <<"[Warning] 프레임 전처리에 실패했습니다. 다음 프레임으로 넘어갑니다." << std::endl;
-            
+
             if (current_frame.image.channels() == 3){
                 cv::cvtColor(current_frame.image, processed_img, cv::COLOR_BGR2GRAY);
             } else {
@@ -390,7 +403,7 @@ int main(int argc, char** argv) {
 
         /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
         switch (fsm.getCurrentState()) {
-            
+
             case FSMState::TRACK: {
                 // KCF 추적 수행
                 // [재수정] 원본 고정 스냅샷(getOriginalTemplate/getOriginalDescriptors)과만
@@ -416,7 +429,7 @@ int main(int argc, char** argv) {
                     }
 
                     // 추적 성공 시 -> 칼만 필터 보정 및 타겟 박스 확정
-                    cv::Point2f kcf_center(res.bbox.x + res.bbox.width / 2.0f, 
+                    cv::Point2f kcf_center(res.bbox.x + res.bbox.width / 2.0f,
                                            res.bbox.y + res.bbox.height / 2.0f);
 
                     cv::Point2f kalman_corrected_pos = state_estimator.update(kcf_center);
@@ -442,13 +455,13 @@ int main(int argc, char** argv) {
                 cv::Rect coast_box(estimated_pos.x - target_box.width / 2.0f,
                                    estimated_pos.y - target_box.height / 2.0f,
                                    target_box.width, target_box.height);
-                
+
                 cv::Rect safe_coast_box = coast_box & cv::Rect(0, 0, current_frame.width, current_frame.height);
                 fsm.setTargetBox(coast_box & cv::Rect(0, 0, current_frame.width, current_frame.height));
 
                 // 이진화 윤곽선 매칭을 이용한 고속 후보 탐색
                 cv::Rect candidateBox;
-                
+
                 std::cout << "DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (" << static_cast<int>(estimated_pos.x) << ", " << static_cast<int>(estimated_pos.y) << ")" << std::endl;
                 bool foundCandidate = acq_manager.detectCandidateInPredictArea(
                     processed_img,            // 1. 전처리 모듈이 만든 흑백 영상
@@ -456,14 +469,14 @@ int main(int argc, char** argv) {
                     fsm.getSearchWindowSize(), // 3. FSM 내부 알고리즘이 결정한 동적 윈도우 크기 (80 또는 160)
                     candidateBox              // 4. [출력] 새로 찾아낸 후보 좌표를 받아올 변수
                 );
-                
+
                 std::cout << "DEBUG 2: 후보 탐색 결과 = " << (foundCandidate ? "발견" : "미발견") << std::endl;
-                
+
                 if (foundCandidate) {
                     // 후보 발견된 경우 다음 프레임에 REACQUIRE 상태에서 검증하기 위해 플래그 설정
                     isFound = true; // 현재 프레임에서는 아직 KCF 구동하지 않음
                     conf = 0.0f; // 임시 합격 커트라인 점수를 주어 FSM의 update 스위치 동작
-                    
+
                     fsm.setTargetBox(candidateBox);
                 } else {
                     isFound = false;
@@ -497,7 +510,7 @@ int main(int argc, char** argv) {
                     // 검증 통과 시 추적기 새 위치로 재부팅
                     tracker.init(current_frame.image, tempBox, acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
-                    
+
                     state_estimator.update(re_center); // 칼만 필터도 새 위치로 보정
 
                     estimated_vel = state_estimator.getEstimatedVelocity(); // 보정된 속도 벡터 업데이트
@@ -567,10 +580,10 @@ int main(int argc, char** argv) {
                   << " | Tilt: " << servo_cmd.tilt_cmd
                   << std::endl;
         }
-        
+
         // [Step B] 시각화 준비
         cv::Mat display_img = current_frame.image.clone();
-        
+
         // --- 실시간 모니터링 그래픽 시각화 ---
         cv::Rect final_draw_box = fsm.getTargetBox();
         if (fsm.getCurrentState() == FSMState::TRACK) {
@@ -578,9 +591,9 @@ int main(int argc, char** argv) {
             cv::putText(display_img, "STATE: TRACKING", cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
         } else if (fsm.getCurrentState() == FSMState::LOST || fsm.getCurrentState() == FSMState::REACQUIRE) {
             cv::circle(display_img, estimated_pos, 20, cv::Scalar(0, 0, 255), 2);
-            cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1); 
+            cv::putText(display_img, "STATE: " +fsm.getStateString(), cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
         }
-        
+
         // --- 최적 추정 위치 및 속도 벡터 화살표 추력 ---
         cv::circle(display_img, estimated_pos, 5, cv::Scalar(255, 0, 0), -1);
         cv::Point2f velocity_vector_end = estimated_pos + estimated_vel * 0.2f;
@@ -593,13 +606,19 @@ int main(int argc, char** argv) {
 
             cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 0), 1);
 
-        std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) + 
+        std::string cmd_text = "Pan Cmd: " + std::to_string(static_cast<int>(servo_cmd.pan_cmd)) +
                                 " | Tilt Cmd: " + std::to_string(static_cast<int>(servo_cmd.tilt_cmd));
-        cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);                  
-        
+        cv::putText(display_img, cmd_text, cv::Point(15, current_frame.height - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+
         cv::putText(display_img, "F: " + std::to_string(current_frame.frame_count), cv::Point(current_frame.width - 100, 30), cv::FONT_HERSHEY_SIMPLEX,
                         0.5, cv::Scalar(255, 255, 0), 1);
-        cv::imshow("Tracking Test", display_img);
+
+        // [헤드리스 모드] 실시간 GUI 창 갱신은 showGui일 때만 수행한다.
+        // display_img 자체(그리기)는 GUI 여부와 무관하게 항상 계산해서, 아래 DebugConfig 덤프가
+        // 화면 없이도 동일한 오버레이 이미지를 그대로 저장할 수 있게 한다.
+        if (showGui) {
+            cv::imshow("Tracking Test", display_img);
+        }
 
         // [디버그] 최종 오버레이 프레임(bbox, FSM 상태, 추정/예측 위치)을 10프레임마다 저장.
         // 전체 파이프라인이 그 순간 실제로 뭘 보고 있었는지 최종 확인용.
@@ -608,7 +627,12 @@ int main(int argc, char** argv) {
                         display_img);
         }
 
-        if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
+        // [헤드리스 모드] GUI 창이 없는 상태에서 cv::waitKey를 호출하면 불필요하게 대기하거나
+        // 에러가 날 수 있으므로 showGui일 때만 ESC 입력을 확인한다. 헤드리스 모드에서는
+        // 영상 파일이 끝나면(video_input.read 실패) 위쪽 루프 조건에서 자동으로 종료된다.
+        if (showGui) {
+            if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
+        }
 
         // [진단용] 이번 프레임의 "카메라 대기"를 제외한 나머지(전처리~표시~waitKey) 소요 시간 누적
         accum_process_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_after_read).count();
@@ -633,6 +657,8 @@ CORE_LOOP_EXIT:
     }
     std::cout << "[System] 루프 종료" << std::endl;
     video_input.release();
-    cv::destroyAllWindows();
+    if (showGui) {
+        cv::destroyAllWindows();
+    }
     return 0;
 }
