@@ -87,3 +87,14 @@ target_link_libraries(test_state_estimator PRIVATE gtest_main ${OpenCV_LIBS})
 
 include(GoogleTest)
 gtest_discover_tests(test_state_estimator)
+
+# Tracker(KCF) 단위테스트: 합성 이미지로 입력 검증/기본 추적 계약만 확인하고,
+# ORB/NCC 신뢰도 정밀 검증이나 30프레임 주기 템플릿 갱신 같은 실카메라 튜닝
+# 의존 동작은 실제 영상(test1~5.mp4) 기반 통합 실행으로 이미 검증되므로 범위에서 제외.
+add_executable(test_tracker
+    tests/test_tracker.cpp
+    src/target_tracking/Tracker.cpp
+)
+target_include_directories(test_tracker PRIVATE include)
+target_link_libraries(test_tracker PRIVATE gtest_main ${OpenCV_LIBS})
+gtest_discover_tests(test_tracker)
