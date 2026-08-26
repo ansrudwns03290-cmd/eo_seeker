@@ -103,7 +103,7 @@ public:
         std::string gitHash    = getGitCommitHash();
         std::string videoLabel = (argc > 1) ? fs::path(argv[1]).stem().string() : "camera";
 
-        fs::path logsDir = "C:/eo_seeker/logs";
+        fs::path logsDir = "logs";
         std::error_code ec;
         fs::create_directories(logsDir, ec);
 

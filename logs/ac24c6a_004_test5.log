@@ -1,0 +1,339 @@
+[Logger] 로그 저장 경로: logs\ac24c6a_004_test5.log
+[FSM] State Machine Initialized. Current: SEARCH
+[ServoOutput] PC 빌드 - 텍스트 출력 스텁 모드로 동작
+=== EO Seeker 실행 (파일 재생: data/test5.mp4) ===
+[Init] ROI 프리셋 파일 저장 (다음 실행부터 자동 재사용됨): data/test5.roi -> [218 x 193 from (369, 125)]
+[Acquisition] Mode: ORB-Rich
+[Acquisition: Debug] Extracted ORB Keypoints: 132
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[Warm-up] 초기화 캐시 예열 중...
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[Warm-up] 완료 (485ms, 세션 통계에서 제외됨)
+[FSM Transition] SEARCH -> TRACK
+[Init] Target & Tracker Registered!
+Initial Target Box info: "369", "125", "218", "193"
+[Timing] Camera Wait Avg: 9.50ms | Processing Avg: 73.19ms (last 10 frames)
+Frame: 10 | [Tracking] Conf: 1.00 | FPS: 33.3 | TS: 300ms | Target Pos: (472, 206) | [Servo Cmd] Pan: 118.34 | Tilt: 85.44
+[Timing] Camera Wait Avg: 11.24ms | Processing Avg: 95.53ms (last 10 frames)
+Frame: 20 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 633ms | Target Pos: (469, 197) | [Servo Cmd] Pan: 148.36 | Tilt: 77.43
+[Timing] Camera Wait Avg: 10.09ms | Processing Avg: 93.78ms (last 10 frames)
+Frame: 30 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 966ms | Target Pos: (454, 195) | [Servo Cmd] Pan: 177.36 | Tilt: 68.85
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 132
+[Acquisition: Anchor] 원본 대비 NCC: 0.65 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 108 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 10.55ms | Processing Avg: 98.47ms (last 10 frames)
+Frame: 40 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 1300ms | Target Pos: (385, 194) | [Servo Cmd] Pan: 180.00 | Tilt: 60.04
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 10.72ms | Processing Avg: 96.81ms (last 10 frames)
+Frame: 50 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 1633ms | Target Pos: (287, 174) | [Servo Cmd] Pan: 178.52 | Tilt: 49.25
+[Timing] Camera Wait Avg: 9.91ms | Processing Avg: 101.28ms (last 10 frames)
+Frame: 60 | [Tracking] Conf: 0.99 | FPS: 30.0 | TS: 1966ms | Target Pos: (192, 160) | [Servo Cmd] Pan: 161.29 | Tilt: 33.90
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 127
+[Acquisition: Anchor] 원본 대비 NCC: 0.41 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 53 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo WARNING] Tilt 한계 도달: 30.00°
+[Timing] Camera Wait Avg: 9.61ms | Processing Avg: 96.81ms (last 10 frames)
+Frame: 70 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 2299ms | Target Pos: (111, 166) | [Servo Cmd] Pan: 126.15 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.89ms | Processing Avg: 100.03ms (last 10 frames)
+Frame: 80 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 2633ms | Target Pos: (115, 164) | [Servo Cmd] Pan: 83.16 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.28ms | Processing Avg: 99.60ms (last 10 frames)
+Frame: 90 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 2966ms | Target Pos: (197, 146) | [Servo Cmd] Pan: 50.75 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 128
+[Acquisition: Anchor] 원본 대비 NCC: 0.35 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 78 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 10.42ms | Processing Avg: 97.70ms (last 10 frames)
+Frame: 100 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 3299ms | Target Pos: (313, 137) | [Servo Cmd] Pan: 39.21 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.12ms | Processing Avg: 96.97ms (last 10 frames)
+Frame: 110 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 3633ms | Target Pos: (410, 175) | [Servo Cmd] Pan: 49.40 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.66ms | Processing Avg: 98.93ms (last 10 frames)
+Frame: 120 | [Tracking] Conf: 0.96 | FPS: 30.0 | TS: 3966ms | Target Pos: (478, 191) | [Servo Cmd] Pan: 75.36 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 133
+[Acquisition: Anchor] 원본 대비 NCC: 0.59 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 105 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 12.50ms | Processing Avg: 100.18ms (last 10 frames)
+Frame: 130 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 4299ms | Target Pos: (521, 199) | [Servo Cmd] Pan: 112.66 | Tilt: 30.00
+[Timing] Camera Wait Avg: 12.59ms | Processing Avg: 98.43ms (last 10 frames)
+Frame: 140 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 4632ms | Target Pos: (526, 194) | [Servo Cmd] Pan: 153.83 | Tilt: 30.00
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 15.87ms | Processing Avg: 97.65ms (last 10 frames)
+Frame: 150 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 4966ms | Target Pos: (503, 192) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 132
+[Acquisition: Anchor] 원본 대비 NCC: 0.61 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 96 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.89ms | Processing Avg: 94.52ms (last 10 frames)
+Frame: 160 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 5299ms | Target Pos: (438, 197) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.40ms | Processing Avg: 97.17ms (last 10 frames)
+Frame: 170 | [Tracking] Conf: 0.96 | FPS: 30.0 | TS: 5632ms | Target Pos: (361, 201) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 18.81ms | Processing Avg: 98.69ms (last 10 frames)
+Frame: 180 | [Tracking] Conf: 0.60 | FPS: 29.9 | TS: 5966ms | Target Pos: (289, 202) | [Servo Cmd] Pan: 178.54 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.73ms | Processing Avg: 96.38ms (last 10 frames)
+Frame: 190 | [Tracking] Conf: 0.67 | FPS: 30.0 | TS: 6299ms | Target Pos: (229, 198) | [Servo Cmd] Pan: 165.52 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.80ms | Processing Avg: 98.09ms (last 10 frames)
+Frame: 200 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 6632ms | Target Pos: (165, 192) | [Servo Cmd] Pan: 139.83 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.09ms | Processing Avg: 97.22ms (last 10 frames)
+Frame: 210 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 6965ms | Target Pos: (142, 196) | [Servo Cmd] Pan: 105.25 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 130
+[Acquisition: Anchor] 원본 대비 NCC: 0.37 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 67 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.45ms | Processing Avg: 95.66ms (last 10 frames)
+Frame: 220 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 7299ms | Target Pos: (202, 194) | [Servo Cmd] Pan: 74.79 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.07ms | Processing Avg: 98.98ms (last 10 frames)
+Frame: 230 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 7632ms | Target Pos: (301, 192) | [Servo Cmd] Pan: 61.44 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.96ms | Processing Avg: 96.79ms (last 10 frames)
+Frame: 240 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 7965ms | Target Pos: (396, 197) | [Servo Cmd] Pan: 68.58 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 129
+[Acquisition: Anchor] 원본 대비 NCC: 0.55 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 97 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.37ms | Processing Avg: 97.76ms (last 10 frames)
+Frame: 250 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 8299ms | Target Pos: (472, 212) | [Servo Cmd] Pan: 93.80 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.49ms | Processing Avg: 97.58ms (last 10 frames)
+Frame: 260 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 8632ms | Target Pos: (492, 212) | [Servo Cmd] Pan: 127.41 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.57ms | Processing Avg: 96.11ms (last 10 frames)
+Frame: 270 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 8965ms | Target Pos: (498, 215) | [Servo Cmd] Pan: 162.40 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 133
+[Acquisition: Anchor] 원본 대비 NCC: 0.52 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 110 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 18.27ms | Processing Avg: 99.98ms (last 10 frames)
+Frame: 280 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 9298ms | Target Pos: (491, 203) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.17ms | Processing Avg: 97.16ms (last 10 frames)
+Frame: 290 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 9632ms | Target Pos: (474, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.30ms | Processing Avg: 94.68ms (last 10 frames)
+Frame: 300 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 9965ms | Target Pos: (471, 218) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 124
+[Acquisition: Anchor] 원본 대비 NCC: 0.60 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 57 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.53ms | Processing Avg: 98.41ms (last 10 frames)
+Frame: 310 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 10298ms | Target Pos: (466, 217) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.41ms | Processing Avg: 97.65ms (last 10 frames)
+Frame: 320 | [Tracking] Conf: 1.00 | FPS: 29.9 | TS: 10632ms | Target Pos: (410, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] Target LOST
+[Timing] Camera Wait Avg: 19.45ms | Processing Avg: 93.93ms (last 10 frames)
+Frame: 330 | [Tracking] Conf: 0.00 | FPS: 30.0 | TS: 10965ms | Target Pos: (350, 219) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[FSM LOST Cause] KCF Success: False| Last Conf: 0.00| Low Conf Count: 5
+[FSM LOST History] Recent confidence: 1.00 1.00 0.66 0.66 0.66 0.00 0.00 0.00 0.00 0.00 
+[FSM LOST Cause] Target Speed75.29 (High-Speed Loss)
+[FSM Transition] TRACK -> LOST
+Frame: 333 | [State: LOST] Conf: 0.00 | TS: 11065ms | Target Pos: (343, 219) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (340, 220)
+[Acquisition LOST] NCC 최고 점수: 0.43, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 334 | [State: LOST] Conf: 0.00 | TS: 11098ms | Target Pos: (340, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (338, 220)
+[Acquisition LOST] NCC 최고 점수: 0.42, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 335 | [State: LOST] Conf: 0.00 | TS: 11132ms | Target Pos: (338, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (335, 220)
+[Acquisition LOST] NCC 최고 점수: 0.41, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 336 | [State: LOST] Conf: 0.00 | TS: 11165ms | Target Pos: (335, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (333, 220)
+[Acquisition LOST] NCC 최고 점수: 0.42, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 337 | [State: LOST] Conf: 0.00 | TS: 11198ms | Target Pos: (333, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (330, 220)
+[Acquisition LOST] NCC 최고 점수: 0.43, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 338 | [State: LOST] Conf: 0.00 | TS: 11231ms | Target Pos: (330, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (328, 220)
+[Acquisition LOST] NCC 최고 점수: 0.42, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 339 | [State: LOST] Conf: 0.00 | TS: 11265ms | Target Pos: (328, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (325, 220)
+[Acquisition LOST] NCC 최고 점수: 0.40, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+[Timing] Camera Wait Avg: 20.46ms | Processing Avg: 11.89ms (last 10 frames)
+Frame: 340 | [State: LOST] Conf: 0.00 | TS: 11298ms | Target Pos: (325, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (323, 220)
+[Acquisition LOST] NCC 최고 점수: 0.38, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 341 | [State: LOST] Conf: 0.00 | TS: 11331ms | Target Pos: (323, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (320, 220)
+[Acquisition LOST] NCC 최고 점수: 0.36, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 342 | [State: LOST] Conf: 0.00 | TS: 11365ms | Target Pos: (320, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (318, 220)
+[Acquisition LOST] NCC 최고 점수: 0.36, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 343 | [State: LOST] Conf: 0.00 | TS: 11398ms | Target Pos: (318, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (315, 221)
+[Acquisition LOST] NCC 최고 점수: 0.36, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 344 | [State: LOST] Conf: 0.00 | TS: 11431ms | Target Pos: (315, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (313, 221)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 345 | [State: LOST] Conf: 0.00 | TS: 11465ms | Target Pos: (313, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (310, 221)
+[Acquisition LOST] NCC 최고 점수: 0.37, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 346 | [State: LOST] Conf: 0.00 | TS: 11498ms | Target Pos: (310, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (308, 221)
+[Acquisition LOST] NCC 최고 점수: 0.38, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 347 | [State: LOST] Conf: 0.00 | TS: 11531ms | Target Pos: (308, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (305, 221)
+[Acquisition LOST] NCC 최고 점수: 0.39, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 348 | [State: LOST] Conf: 0.00 | TS: 11565ms | Target Pos: (305, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (303, 221)
+[Acquisition LOST] NCC 최고 점수: 0.38, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 349 | [State: LOST] Conf: 0.00 | TS: 11598ms | Target Pos: (303, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (300, 221)
+[Acquisition LOST] NCC 최고 점수: 0.37, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+[Timing] Camera Wait Avg: 20.07ms | Processing Avg: 19.25ms (last 10 frames)
+Frame: 350 | [State: LOST] Conf: 0.00 | TS: 11631ms | Target Pos: (300, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (298, 221)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 351 | [State: LOST] Conf: 0.00 | TS: 11665ms | Target Pos: (298, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (295, 221)
+[Acquisition LOST] NCC 최고 점수: 0.34, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 352 | [State: LOST] Conf: 0.00 | TS: 11698ms | Target Pos: (295, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (293, 221)
+[Acquisition LOST] NCC 최고 점수: 0.34, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 353 | [State: LOST] Conf: 0.00 | TS: 11731ms | Target Pos: (293, 221) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (290, 222)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 354 | [State: LOST] Conf: 0.00 | TS: 11765ms | Target Pos: (290, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (288, 222)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 355 | [State: LOST] Conf: 0.00 | TS: 11798ms | Target Pos: (288, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (285, 222)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 356 | [State: LOST] Conf: 0.00 | TS: 11831ms | Target Pos: (285, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (283, 222)
+[Acquisition LOST] NCC 최고 점수: 0.36, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 357 | [State: LOST] Conf: 0.00 | TS: 11865ms | Target Pos: (283, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (280, 222)
+[Acquisition LOST] NCC 최고 점수: 0.37, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 358 | [State: LOST] Conf: 0.00 | TS: 11898ms | Target Pos: (280, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (278, 222)
+[Acquisition LOST] NCC 최고 점수: 0.35, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 359 | [State: LOST] Conf: 0.00 | TS: 11931ms | Target Pos: (278, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (275, 222)
+[Acquisition LOST] NCC 최고 점수: 0.33, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+[Timing] Camera Wait Avg: 19.71ms | Processing Avg: 14.80ms (last 10 frames)
+Frame: 360 | [State: LOST] Conf: 0.00 | TS: 11965ms | Target Pos: (275, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (273, 222)
+[Acquisition LOST] NCC 최고 점수: 0.29, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 361 | [State: LOST] Conf: 0.00 | TS: 11998ms | Target Pos: (273, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (270, 222)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 362 | [State: LOST] Conf: 0.00 | TS: 12031ms | Target Pos: (270, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (268, 222)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 363 | [State: LOST] Conf: 0.00 | TS: 12065ms | Target Pos: (268, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (265, 222)
+[Acquisition LOST] NCC 최고 점수: 0.26, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 364 | [State: LOST] Conf: 0.00 | TS: 12098ms | Target Pos: (265, 222) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (263, 223)
+[Acquisition LOST] NCC 최고 점수: 0.26, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 365 | [State: LOST] Conf: 0.00 | TS: 12131ms | Target Pos: (263, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (260, 223)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 366 | [State: LOST] Conf: 0.00 | TS: 12165ms | Target Pos: (260, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (258, 223)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 367 | [State: LOST] Conf: 0.00 | TS: 12198ms | Target Pos: (258, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (255, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 368 | [State: LOST] Conf: 0.00 | TS: 12231ms | Target Pos: (255, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (253, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 369 | [State: LOST] Conf: 0.00 | TS: 12265ms | Target Pos: (253, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (250, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+[Timing] Camera Wait Avg: 19.93ms | Processing Avg: 13.22ms (last 10 frames)
+Frame: 370 | [State: LOST] Conf: 0.00 | TS: 12298ms | Target Pos: (250, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (248, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 371 | [State: LOST] Conf: 0.00 | TS: 12331ms | Target Pos: (248, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (245, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 372 | [State: LOST] Conf: 0.00 | TS: 12365ms | Target Pos: (245, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (243, 223)
+[Acquisition LOST] NCC 최고 점수: 0.28, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 373 | [State: LOST] Conf: 0.00 | TS: 12398ms | Target Pos: (243, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (240, 223)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 374 | [State: LOST] Conf: 0.00 | TS: 12431ms | Target Pos: (240, 223) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (238, 224)
+[Acquisition LOST] NCC 최고 점수: 0.27, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 375 | [State: LOST] Conf: 0.00 | TS: 12465ms | Target Pos: (238, 224) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (235, 224)
+[Acquisition LOST] NCC 최고 점수: 0.26, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 376 | [State: LOST] Conf: 0.00 | TS: 12498ms | Target Pos: (235, 224) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (233, 224)
+[Acquisition LOST] NCC 최고 점수: 0.26, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 377 | [State: LOST] Conf: 0.00 | TS: 12531ms | Target Pos: (233, 224) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (230, 224)
+[Acquisition LOST] NCC 최고 점수: 0.25, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 378 | [State: LOST] Conf: 0.00 | TS: 12565ms | Target Pos: (230, 224) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (228, 224)
+[Acquisition LOST] NCC 최고 점수: 0.24, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+[FSM Warning] 골든타임 1.5초 초과로 완전 상실 판정.
+[FSM Transition] LOST -> SEARCH
+Frame: 379 | [State: SEARCH] Conf: 0.00 | TS: 12598ms | Target Pos: (228, 224) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[System Central Control] 표적 완전 상실로 제어를 종료합니다.
+
+===== 세션 요약 =====
+총 프레임    : 380프레임
+총 경과 시간 : 12.6s
+평균 FPS     : 30.1
+추적 성공률  : 87.1%
+LOST 발생    : 1회
+재획득 성공  : 0회
+재획득 실패  : 0회
+=====================
+[System] 루프 종료
