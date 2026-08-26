@@ -1,0 +1,313 @@
+[Logger] 로그 저장 경로: logs\ac24c6a_003_test4.log
+[FSM] State Machine Initialized. Current: SEARCH
+[ServoOutput] PC 빌드 - 텍스트 출력 스텁 모드로 동작
+=== EO Seeker 실행 (파일 재생: data/test4.mp4) ===
+[Init] ROI 프리셋 파일 저장 (다음 실행부터 자동 재사용됨): data/test4.roi -> [136 x 122 from (455, 100)]
+[Acquisition] Mode: ORB-Rich
+[Acquisition: Debug] Extracted ORB Keypoints: 90
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[Warm-up] 초기화 캐시 예열 중...
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[Warm-up] 완료 (94ms, 세션 통계에서 제외됨)
+[FSM Transition] SEARCH -> TRACK
+[Init] Target & Tracker Registered!
+Initial Target Box info: "455", "100", "136", "122"
+[Timing] Camera Wait Avg: 8.42ms | Processing Avg: 18.52ms (last 10 frames)
+Frame: 10 | [Tracking] Conf: 1.00 | FPS: 33.4 | TS: 299ms | Target Pos: (523, 155) | [Servo Cmd] Pan: 126.95 | Tilt: 75.22
+[Timing] Camera Wait Avg: 11.45ms | Processing Avg: 27.57ms (last 10 frames)
+Frame: 20 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 632ms | Target Pos: (523, 155) | [Servo Cmd] Pan: 167.55 | Tilt: 58.04
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 10.70ms | Processing Avg: 23.80ms (last 10 frames)
+Frame: 30 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 964ms | Target Pos: (518, 152) | [Servo Cmd] Pan: 180.00 | Tilt: 41.39
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 83
+[Acquisition: Anchor] 원본 대비 NCC: 0.78 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 80 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo WARNING] Tilt 한계 도달: 30.00°
+[Timing] Camera Wait Avg: 11.60ms | Processing Avg: 24.66ms (last 10 frames)
+Frame: 40 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 1297ms | Target Pos: (484, 129) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 11.57ms | Processing Avg: 27.08ms (last 10 frames)
+Frame: 50 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 1629ms | Target Pos: (437, 139) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.43ms | Processing Avg: 22.02ms (last 10 frames)
+Frame: 60 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 1962ms | Target Pos: (398, 150) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 85
+[Acquisition: Anchor] 원본 대비 NCC: 0.62 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 21 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 10.54ms | Processing Avg: 25.66ms (last 10 frames)
+Frame: 70 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 2294ms | Target Pos: (373, 149) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.69ms | Processing Avg: 25.04ms (last 10 frames)
+Frame: 80 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 2627ms | Target Pos: (345, 146) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 10.93ms | Processing Avg: 25.14ms (last 10 frames)
+Frame: 90 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 2959ms | Target Pos: (309, 148) | [Servo Cmd] Pan: 179.74 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 88
+[Acquisition: Anchor] 원본 대비 NCC: 0.48 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 19 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 10.51ms | Processing Avg: 25.66ms (last 10 frames)
+Frame: 100 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 3292ms | Target Pos: (268, 148) | [Servo Cmd] Pan: 172.91 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.92ms | Processing Avg: 22.72ms (last 10 frames)
+Frame: 110 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 3624ms | Target Pos: (234, 160) | [Servo Cmd] Pan: 158.51 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.84ms | Processing Avg: 23.13ms (last 10 frames)
+Frame: 120 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 3957ms | Target Pos: (210, 161) | [Servo Cmd] Pan: 138.56 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 92
+[Acquisition: Anchor] 원본 대비 NCC: 0.35 (기준 0.35, 미달)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 14 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 10.51ms | Processing Avg: 23.32ms (last 10 frames)
+Frame: 130 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 4289ms | Target Pos: (188, 164) | [Servo Cmd] Pan: 114.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.15ms | Processing Avg: 24.45ms (last 10 frames)
+Frame: 140 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 4622ms | Target Pos: (178, 168) | [Servo Cmd] Pan: 86.36 | Tilt: 30.00
+[Timing] Camera Wait Avg: 10.53ms | Processing Avg: 25.11ms (last 10 frames)
+Frame: 150 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 4954ms | Target Pos: (181, 167) | [Servo Cmd] Pan: 58.15 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 89
+[Acquisition: Anchor] 원본 대비 NCC: 0.33 (기준 0.35, 미달)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 12 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 13.46ms | Processing Avg: 26.78ms (last 10 frames)
+Frame: 160 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 5287ms | Target Pos: (201, 163) | [Servo Cmd] Pan: 32.42 | Tilt: 30.00
+[Timing] Camera Wait Avg: 13.04ms | Processing Avg: 27.60ms (last 10 frames)
+Frame: 170 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 5619ms | Target Pos: (228, 167) | [Servo Cmd] Pan: 11.74 | Tilt: 30.00
+[Servo WARNING] Pan 한계 도달: 0.00°
+[Timing] Camera Wait Avg: 12.86ms | Processing Avg: 29.04ms (last 10 frames)
+Frame: 180 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 5952ms | Target Pos: (263, 167) | [Servo Cmd] Pan: 0.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 85
+[Acquisition: Anchor] 원본 대비 NCC: 0.40 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 21 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 13.20ms | Processing Avg: 28.63ms (last 10 frames)
+Frame: 190 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 6284ms | Target Pos: (297, 165) | [Servo Cmd] Pan: 0.00 | Tilt: 30.00
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 12.90ms | Processing Avg: 29.32ms (last 10 frames)
+Frame: 200 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 6617ms | Target Pos: (332, 165) | [Servo Cmd] Pan: 0.29 | Tilt: 30.00
+[Timing] Camera Wait Avg: 13.19ms | Processing Avg: 27.13ms (last 10 frames)
+Frame: 210 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 6949ms | Target Pos: (363, 167) | [Servo Cmd] Pan: 6.12 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 85
+[Acquisition: Anchor] 원본 대비 NCC: 0.47 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 18 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 16.79ms | Processing Avg: 30.88ms (last 10 frames)
+Frame: 220 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 7282ms | Target Pos: (400, 167) | [Servo Cmd] Pan: 19.11 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.08ms | Processing Avg: 27.58ms (last 10 frames)
+Frame: 230 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 7614ms | Target Pos: (434, 175) | [Servo Cmd] Pan: 39.07 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.01ms | Processing Avg: 29.41ms (last 10 frames)
+Frame: 240 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 7947ms | Target Pos: (461, 182) | [Servo Cmd] Pan: 65.07 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 47
+[Acquisition: Anchor] 원본 대비 NCC: 0.59 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 19 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.87ms | Processing Avg: 28.18ms (last 10 frames)
+Frame: 250 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 8279ms | Target Pos: (483, 188) | [Servo Cmd] Pan: 95.83 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.26ms | Processing Avg: 27.93ms (last 10 frames)
+Frame: 260 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 8612ms | Target Pos: (486, 187) | [Servo Cmd] Pan: 129.17 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.01ms | Processing Avg: 26.39ms (last 10 frames)
+Frame: 270 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 8944ms | Target Pos: (477, 191) | [Servo Cmd] Pan: 161.71 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 16
+[Acquisition: Anchor] 원본 대비 NCC: 0.67 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 5 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 18.80ms | Processing Avg: 29.06ms (last 10 frames)
+Frame: 280 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 9277ms | Target Pos: (468, 195) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.30ms | Processing Avg: 28.97ms (last 10 frames)
+Frame: 290 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 9609ms | Target Pos: (466, 189) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.78ms | Processing Avg: 27.75ms (last 10 frames)
+Frame: 300 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 9942ms | Target Pos: (462, 192) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 10
+[Acquisition: Anchor] 원본 대비 NCC: 0.65 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 4 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.10ms | Processing Avg: 28.07ms (last 10 frames)
+Frame: 310 | [Tracking] Conf: 0.81 | FPS: 30.1 | TS: 10274ms | Target Pos: (449, 197) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.11ms | Processing Avg: 30.58ms (last 10 frames)
+Frame: 320 | [Tracking] Conf: 0.87 | FPS: 30.0 | TS: 10607ms | Target Pos: (446, 214) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.35ms | Processing Avg: 27.69ms (last 10 frames)
+Frame: 330 | [Tracking] Conf: 0.87 | FPS: 30.1 | TS: 10939ms | Target Pos: (439, 211) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 7
+[Acquisition: Anchor] 원본 대비 NCC: 0.61 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 1 (기준 3, 미달)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.84ms | Processing Avg: 29.29ms (last 10 frames)
+Frame: 340 | [Tracking] Conf: 0.79 | FPS: 30.0 | TS: 11272ms | Target Pos: (399, 220) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.83ms | Processing Avg: 25.07ms (last 10 frames)
+Frame: 350 | [Tracking] Conf: 0.79 | FPS: 30.0 | TS: 11605ms | Target Pos: (368, 215) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[FSM LOST Cause] KCF Success: True| Last Conf: 0.00| Low Conf Count: 5
+[FSM LOST History] Recent confidence: 0.79 0.79 0.79 0.79 0.79 0.00 0.00 0.00 0.00 0.00 
+[FSM LOST Cause] Target Speed57.43 (High-Speed Loss)
+[FSM Transition] TRACK -> LOST
+[Timing] Camera Wait Avg: 18.73ms | Processing Avg: 27.77ms (last 10 frames)
+Frame: 360 | [State: LOST] Conf: 0.00 | TS: 11937ms | Target Pos: (346, 207) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (344, 207)
+[Acquisition] No ORB descriptors found in candidate ROI.
+[Acquisition LOST] NCC 최고 점수: 0.67, Threshold: 0.60
+DEBUG 2: 후보 탐색 결과 = 미발견
+Frame: 361 | [State: LOST] Conf: 0.00 | TS: 11970ms | Target Pos: (344, 207) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (342, 207)
+DEBUG 2: 후보 탐색 결과 = 발견
+[FSM:LOST] 후보 박스 발견 -> REACQUIRE로 전달
+[FSM Transition] LOST -> REACQUIRE
+Frame: 362 | [State: REACQUIRE] Conf: 0.00 | TS: 12004ms | Target Pos: (342, 207) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker: Verify] ORB Score: 0.00, NCC Score: 1.00 -> Final Confidence: 0.70
+DEBUG: 후보 검증 점수 = 0.70
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[FSM Success] 표적 검증 통과! TRACK 상태로 복귀합니다.
+[FSM Transition] REACQUIRE -> TRACK
+[Timing] Camera Wait Avg: 19.39ms | Processing Avg: 22.36ms (last 10 frames)
+Frame: 370 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 12270ms | Target Pos: (418, 126) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.17ms | Processing Avg: 28.65ms (last 10 frames)
+Frame: 380 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 12602ms | Target Pos: (423, 135) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.87ms | Processing Avg: 28.12ms (last 10 frames)
+Frame: 390 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 12935ms | Target Pos: (428, 145) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 0
+[Acquisition] Warning: Attempting to update target model with empty template or descriptors.
+[Timing] Camera Wait Avg: 19.05ms | Processing Avg: 28.21ms (last 10 frames)
+Frame: 400 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 13267ms | Target Pos: (426, 142) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.78ms | Processing Avg: 27.72ms (last 10 frames)
+Frame: 410 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 13600ms | Target Pos: (427, 144) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.89ms | Processing Avg: 28.28ms (last 10 frames)
+Frame: 420 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 13932ms | Target Pos: (422, 138) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 0
+[Acquisition] Warning: Attempting to update target model with empty template or descriptors.
+[Timing] Camera Wait Avg: 17.83ms | Processing Avg: 29.00ms (last 10 frames)
+Frame: 430 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 14265ms | Target Pos: (422, 130) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.91ms | Processing Avg: 26.62ms (last 10 frames)
+Frame: 440 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 14597ms | Target Pos: (436, 148) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 17.81ms | Processing Avg: 29.25ms (last 10 frames)
+Frame: 450 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 14930ms | Target Pos: (452, 160) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 0
+[Acquisition] Warning: Attempting to update target model with empty template or descriptors.
+[Timing] Camera Wait Avg: 18.64ms | Processing Avg: 28.46ms (last 10 frames)
+Frame: 460 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 15262ms | Target Pos: (461, 144) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.43ms | Processing Avg: 29.56ms (last 10 frames)
+Frame: 470 | [Tracking] Conf: 0.70 | FPS: 30.0 | TS: 15595ms | Target Pos: (470, 123) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.38ms | Processing Avg: 27.43ms (last 10 frames)
+Frame: 480 | [Tracking] Conf: 0.70 | FPS: 30.1 | TS: 15927ms | Target Pos: (475, 107) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 0
+[Acquisition] Warning: Attempting to update target model with empty template or descriptors.
+[Timing] Camera Wait Avg: 18.61ms | Processing Avg: 27.99ms (last 10 frames)
+Frame: 490 | [Tracking] Conf: 0.32 | FPS: 30.0 | TS: 16260ms | Target Pos: (480, 103) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[FSM LOST Cause] KCF Success: True| Last Conf: 0.32| Low Conf Count: 5
+[FSM LOST History] Recent confidence: 0.70 0.70 0.70 0.70 0.70 0.32 0.32 0.32 0.32 0.32 
+[FSM LOST Cause] Target Speed30.86 (High-Speed Loss)
+[FSM Transition] TRACK -> LOST
+Frame: 492 | [State: LOST] Conf: 0.32 | TS: 16326ms | Target Pos: (482, 101) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+DEBUG 1: LOST 상태에서 후보 탐색 시작. 예측 위치 중심: (482, 100)
+DEBUG 2: 후보 탐색 결과 = 발견
+[FSM:LOST] 후보 박스 발견 -> REACQUIRE로 전달
+[FSM Transition] LOST -> REACQUIRE
+Frame: 493 | [State: REACQUIRE] Conf: 0.00 | TS: 16359ms | Target Pos: (482, 100) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker: Verify] ORB Score: 0.47, NCC Score: 1.00 -> Final Confidence: 0.79
+DEBUG: 후보 검증 점수 = 0.79
+[Tracker] KCF Initialized successfully. (Grayscale Target Ready)
+[FSM Success] 표적 검증 통과! TRACK 상태로 복귀합니다.
+[FSM Transition] REACQUIRE -> TRACK
+[Timing] Camera Wait Avg: 18.93ms | Processing Avg: 23.71ms (last 10 frames)
+Frame: 500 | [Tracking] Conf: 0.79 | FPS: 30.1 | TS: 16592ms | Target Pos: (456, 173) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 17.90ms | Processing Avg: 25.71ms (last 10 frames)
+Frame: 510 | [Tracking] Conf: 0.79 | FPS: 30.0 | TS: 16925ms | Target Pos: (482, 176) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 17.80ms | Processing Avg: 30.26ms (last 10 frames)
+Frame: 520 | [Tracking] Conf: 0.79 | FPS: 30.1 | TS: 17257ms | Target Pos: (498, 182) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 7
+[Acquisition: Anchor] 원본 대비 NCC: 0.60 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 2 (기준 3, 미달)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.03ms | Processing Avg: 28.94ms (last 10 frames)
+Frame: 530 | [Tracking] Conf: 0.79 | FPS: 30.0 | TS: 17590ms | Target Pos: (502, 189) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.79ms | Processing Avg: 27.30ms (last 10 frames)
+Frame: 540 | [Tracking] Conf: 0.79 | FPS: 30.1 | TS: 17922ms | Target Pos: (499, 196) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.02ms | Processing Avg: 27.07ms (last 10 frames)
+Frame: 550 | [Tracking] Conf: 0.79 | FPS: 30.0 | TS: 18255ms | Target Pos: (467, 189) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 38
+[Acquisition: Anchor] 원본 대비 NCC: 0.61 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 14 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.30ms | Processing Avg: 26.96ms (last 10 frames)
+Frame: 560 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 18587ms | Target Pos: (330, 170) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 18.30ms | Processing Avg: 26.14ms (last 10 frames)
+Frame: 570 | [Tracking] Conf: 0.99 | FPS: 30.0 | TS: 18920ms | Target Pos: (203, 227) | [Servo Cmd] Pan: 165.75 | Tilt: 30.00
+[Servo] Tilt 한계 해제
+[Servo WARNING] Tilt 한계 도달: 30.00°
+[Timing] Camera Wait Avg: 18.29ms | Processing Avg: 29.32ms (last 10 frames)
+Frame: 580 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 19252ms | Target Pos: (237, 209) | [Servo Cmd] Pan: 143.70 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 38
+[Acquisition: Anchor] 원본 대비 NCC: 0.46 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 7 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 19.19ms | Processing Avg: 26.38ms (last 10 frames)
+Frame: 590 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 19585ms | Target Pos: (382, 170) | [Servo Cmd] Pan: 142.93 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.27ms | Processing Avg: 27.82ms (last 10 frames)
+Frame: 600 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 19917ms | Target Pos: (480, 157) | [Servo Cmd] Pan: 167.99 | Tilt: 30.00
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 17.98ms | Processing Avg: 28.12ms (last 10 frames)
+Frame: 610 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 20250ms | Target Pos: (472, 158) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 29
+[Acquisition: Anchor] 원본 대비 NCC: 0.55 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 11 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Servo] Pan 한계 해제
+[Timing] Camera Wait Avg: 18.82ms | Processing Avg: 26.25ms (last 10 frames)
+Frame: 620 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 20582ms | Target Pos: (316, 158) | [Servo Cmd] Pan: 179.97 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.92ms | Processing Avg: 26.91ms (last 10 frames)
+Frame: 630 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 20915ms | Target Pos: (228, 162) | [Servo Cmd] Pan: 166.73 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.21ms | Processing Avg: 28.60ms (last 10 frames)
+Frame: 640 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 21247ms | Target Pos: (288, 157) | [Servo Cmd] Pan: 153.37 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 69
+[Acquisition: Anchor] 원본 대비 NCC: 0.52 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 28 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.00ms | Processing Avg: 28.73ms (last 10 frames)
+Frame: 650 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 21580ms | Target Pos: (396, 124) | [Servo Cmd] Pan: 159.70 | Tilt: 30.00
+[Servo WARNING] Pan 한계 도달: 180.00°
+[Timing] Camera Wait Avg: 18.46ms | Processing Avg: 28.47ms (last 10 frames)
+Frame: 660 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 21912ms | Target Pos: (456, 109) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.65ms | Processing Avg: 27.94ms (last 10 frames)
+Frame: 670 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 22245ms | Target Pos: (464, 117) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 79
+[Acquisition: Anchor] 원본 대비 NCC: 0.46 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 42 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+[Timing] Camera Wait Avg: 18.87ms | Processing Avg: 26.49ms (last 10 frames)
+Frame: 680 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 22578ms | Target Pos: (458, 129) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 19.17ms | Processing Avg: 26.63ms (last 10 frames)
+Frame: 690 | [Tracking] Conf: 1.00 | FPS: 30.1 | TS: 22910ms | Target Pos: (464, 131) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Timing] Camera Wait Avg: 18.51ms | Processing Avg: 28.77ms (last 10 frames)
+Frame: 700 | [Tracking] Conf: 1.00 | FPS: 30.0 | TS: 23243ms | Target Pos: (467, 131) | [Servo Cmd] Pan: 180.00 | Tilt: 30.00
+[Tracker] 현재 모드 유지 (크기 변화 없음)
+[Tracker] Template Update Triggered. New ORB Keypoints: 78
+[Acquisition: Anchor] 원본 대비 NCC: 0.42 (기준 0.35, 통과)
+[Acquisition: Anchor] 원본 대비 ORB Good Matches: 46 (기준 3, 통과)
+[Acquisition] Target model updated with new template and descriptors.
+
+===== 세션 요약 =====
+총 프레임    : 704프레임
+총 경과 시간 : 23.4s
+평균 FPS     : 30.1
+추적 성공률  : 99.1%
+LOST 발생    : 2회
+재획득 성공  : 2회
+재획득 실패  : 0회
+=====================
+[System] 루프 종료
