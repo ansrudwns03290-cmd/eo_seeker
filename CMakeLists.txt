@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+﻿cmake_minimum_required(VERSION 3.10)
 project(eo_seeker)
 
 # C++ 표준 설정
@@ -61,3 +61,29 @@ target_link_libraries(test_kcf_standalone PRIVATE ${OpenCV_LIBS})
 add_executable(test_video_backend test_video_backend.cpp)
 target_link_libraries(test_video_backend PRIVATE ${OpenCV_LIBS})
 target_include_directories(test_video_backend PRIVATE ${OpenCV_INCLUDE_DIRS})
+
+# ============================================================
+# GoogleTest 도입 (검증 계획 4단계) — FetchContent로 자동 다운로드/빌드되므로
+# 별도 설치 없이 빌드 시점에 바로 사용 가능.
+# ============================================================
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+# StateEstimator(칼만필터) 단위테스트: 이미지 의존성이 없어 GoogleTest 도입의
+# 첫 검증 대상으로 삼음. 통과 확인 후 Tracker 등 다른 모듈도 같은 패턴으로 추가 예정.
+add_executable(test_state_estimator
+    tests/test_state_estimator.cpp
+    src/state_estimation/StateEstimator.cpp
+)
+target_include_directories(test_state_estimator PRIVATE include)
+target_link_libraries(test_state_estimator PRIVATE gtest_main ${OpenCV_LIBS})
+
+include(GoogleTest)
+gtest_discover_tests(test_state_estimator)
