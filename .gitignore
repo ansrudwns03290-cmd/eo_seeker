@@ -25,3 +25,4 @@ vcpkg_installed/
 
 # CMakePresets.json에 없는 컴퓨터별 로컬 오버라이드가 필요할 때만 사용 (현재는 불필요 - vcpkg가 OpenCV를 자동 해결)
 CMakeUserPresets.json
+logs/
