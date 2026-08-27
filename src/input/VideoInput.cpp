@@ -38,6 +38,19 @@ bool VideoInput::open(int camera_id) {
     // [진단용] 드라이버가 보고하는 이론상 FPS 확인 (실측치와 비교용, 참고 수치)
     std::cout << "[VideoInput] Driver-reported FPS: " << cap_.get(cv::CAP_PROP_FPS) << std::endl;
 
+    // 카메라 워밍업: 센서를 막 열었을 때는 자동노출/화이트밸런스가 아직 수렴하지
+    // 않아 초반 몇 프레임이 검은 화면(또는 노출 부족)으로 나오는 경우가 있다.
+    // main.cpp가 이 함수 직후 바로 다음 프레임으로 ROI 선택 창을 띄우므로,
+    // 여기서 몇 프레임을 미리 읽어 버려 실제로 쓰일 첫 프레임은 정상 노출로
+    // 나오게 한다. (영상 파일 재생은 openFile()이 별도로 처리하므로 여기서는
+    // 라이브 카메라 경로에만 영향)
+    {
+        cv::Mat warmup_frame;
+        for (int i = 0; i < 10 && cap_.isOpened(); ++i) {
+            cap_.read(warmup_frame);
+        }
+    }
+
     return cap_.isOpened();
 }
 
@@ -57,6 +70,14 @@ bool VideoInput::read(Frame& frame) {
 
     // 프레임 읽기 및 유효성 검사 [cite: 71, 75]
     if (!cap_.read(img) || img.empty()) {
+        // [진단용] 실패 원인을 구분할 수 있도록 로그를 남긴다. 파일 재생 모드는
+        // 영상이 끝나서 실패하는 게 정상 종료 경로이고, 라이브 카메라 모드는
+        // 원래는 계속 프레임이 나와야 하므로 실패 자체가 이상 상황이라는 것을
+        // 구분해서 표시한다.
+        std::cerr << "[VideoInput] Frame read failed ("
+                   << (m_isFileMode ? "영상 파일 재생 종료 또는 읽기 오류"
+                                     : "라이브 카메라 읽기 실패 - 일시적 오류 또는 연결 끊김 가능")
+                   << ")" << std::endl;
         frame.is_valid = false; // Frame.hpp의 멤버 변수명 반영
         return false;
     }
