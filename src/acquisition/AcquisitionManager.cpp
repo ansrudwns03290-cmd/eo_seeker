@@ -206,6 +206,17 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
         return false;
     }
 
+    // [크래시 방지] cv::matchTemplate()은 검색 이미지가 템플릿보다 크거나 같아야 한다는
+    // 사전조건이 있는데(위반 시 cv::Exception, 미처리 시 프로세스 abort), 위에서
+    // searchRoi를 화면 경계로 클램핑하는 과정에서 크기가 줄어들어 템플릿보다 작아질
+    // 수 있다. 표적을 오래 놓쳐 칼만 필터 관성 예측만으로 위치가 화면 밖까지 크게
+    // 벗어난 경우(실측: 라이브 카메라 고속 이동 후 LOST) 실제로 발생 확인됨.
+    if (croppedSearchImg.cols < currentTemplate.cols || croppedSearchImg.rows < currentTemplate.rows) {
+        std::cout << "[Acquisition LOST] 탐색 영역(" << croppedSearchImg.size()
+                    << ")이 템플릿(" << currentTemplate.size() << ")보다 작아 매칭 생략." << std::endl;
+        return false;
+    }
+
     cv::matchTemplate(croppedSearchImg, currentTemplate, matchResult, cv::TM_CCOEFF_NORMED);
 
     double minVal, maxVal;
