@@ -135,6 +135,10 @@ public:
         }
     }
 
+    // [Metrics] FileLogger가 만든 로그 파일 경로를 그대로 재사용해서, 프레임별 타이밍
+    // CSV 파일명이 항상 같은 커밋 해시/순번/영상이름 규칙을 따르도록 한다.
+    const std::string& logPath() const { return m_logPath; }
+
     ~FileLogger() {
         // std::cout/std::cerr을 원래 버퍼로 되돌려놓아야, 이 객체(및 파일 스트림)가
         // 먼저 소멸된 뒤에도 다른 static 객체가 cout을 안전하게 쓸 수 있다.
@@ -223,6 +227,20 @@ int main(int argc, char** argv) {
     FileLogger file_logger(argc, argv);
 
     std::cout << "[Config] GUI 실시간 표시: " << (showGui ? "ON" : "OFF (EO_SEEKER_NO_DISPLAY=1)") << std::endl;
+
+    // [Metrics] 프레임별 구간(read/preprocess/track/control/servo/visualize) 소요시간을
+    // CSV로 기록한다 (콘솔의 [Timing] 요약과 별개로, 세션 종료 후 정밀 분석용).
+    // FileLogger와 동일한 이름 규칙(같은 커밋 해시/순번/영상이름)을 재사용해서
+    // 로그 파일과 CSV 파일이 항상 짝을 이루도록 한다.
+    std::filesystem::path metrics_csv_path =
+        std::filesystem::path(file_logger.logPath()).replace_extension(".csv");
+    std::ofstream metrics_csv(metrics_csv_path);
+    if (metrics_csv.is_open()) {
+        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,control_ms,servo_ms,visualize_ms,total_ms,fps,reacquire_frames\n";
+        std::cout << "[Metrics] 프레임별 타이밍 CSV 저장 경로: " << metrics_csv_path.string() << std::endl;
+    } else {
+        std::cerr << "[Metrics] 타이밍 CSV 파일을 열 수 없습니다: " << metrics_csv_path.string() << std::endl;
+    }
 
     // [디버그] 파이프라인 중간 이미지 저장 폴더 준비.
     // AcquisitionManager/Tracker 등 다른 모듈에서도 이 폴더에 저장하므로 가장 먼저 생성해둔다.
@@ -349,6 +367,10 @@ int main(int argc, char** argv) {
     int   stat_reacquire_fail    = 0;
     FSMState prev_fsm_state      = FSMState::TRACK;
 
+    // [Metrics] LOST 진입 시점의 프레임 번호. REACQUIRE 성공 시점과의 차이로
+    // "재획득까지 걸린 프레임 수"를 계산하기 위함. 아직 LOST가 발생하지 않았으면 -1.
+    long long lost_start_frame = -1;
+
     // FPS 계산용
     double  current_fps  = 0.0;
     int64_t fps_ref_ts   = static_cast<int64_t>(session_start_ms);
@@ -393,6 +415,7 @@ int main(int argc, char** argv) {
                 processed_img = current_frame.image.clone();
             }
         }
+        auto t_after_preprocess = std::chrono::steady_clock::now();
 
         // [디버그] 전처리 결과(흑백 변환 후 이미지)를 10프레임마다 저장.
         // 노출/블러/색공간 문제로 인해 이후 단계(ORB, NCC)가 나빠지는 건 아닌지 확인용.
@@ -400,6 +423,10 @@ int main(int argc, char** argv) {
             cv::imwrite(DebugConfig::kDebugImageDir + "preprocessed_f" + std::to_string(current_frame.frame_count) + ".png",
                         processed_img);
         }
+
+        // [Metrics] 이번 프레임에서 REACQUIRE가 성공해 재획득까지 걸린 프레임 수.
+        // 해당 없으면 -1 (CSV에는 성공한 프레임 줄에서만 값이 채워짐).
+        long long reacquire_frames_this_row = -1;
 
         /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
         switch (fsm.getCurrentState()) {
@@ -507,6 +534,12 @@ int main(int argc, char** argv) {
 
                 if (v_score >= 0.60f) {
                     stat_reacquire_success++;
+                    // [Metrics] LOST 진입 프레임이 기록되어 있으면, 재획득까지 걸린 프레임 수를 계산
+                    if (lost_start_frame >= 0) {
+                        reacquire_frames_this_row = current_frame.frame_count - lost_start_frame;
+                        std::cout << "[Metrics] 재획득 성공: LOST 진입 후 " << reacquire_frames_this_row << "프레임 만에 재획득" << std::endl;
+                        lost_start_frame = -1; // 다음 LOST를 위해 리셋
+                    }
                     // 검증 통과 시 추적기 새 위치로 재부팅
                     tracker.init(current_frame.image, tempBox, acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                     cv::Point2f re_center(tempBox.x + tempBox.width / 2.0f, tempBox.y + tempBox.height / 2.0f);
@@ -533,18 +566,25 @@ int main(int argc, char** argv) {
                 goto CORE_LOOP_EXIT; // 이중 루프 또는 제어권 완전 탈출을 위한 정석적인 goto 핸들링
             }
         }
+        auto t_after_track = std::chrono::steady_clock::now();
 
         fsm.update(current_frame, conf, isFound, estimated_vel); // FSM 상태 업데이트 (매 프레임마다 현재 프레임의 추적 성공 여부와 신뢰도 점수를 전달)
 
         // 세션 통계 수집
         if (fsm.getCurrentState() == FSMState::TRACK) stat_track_frames++;
-        if (prev_fsm_state == FSMState::TRACK && fsm.getCurrentState() == FSMState::LOST) stat_lost_count++;
+        if (prev_fsm_state == FSMState::TRACK && fsm.getCurrentState() == FSMState::LOST) {
+            stat_lost_count++;
+            lost_start_frame = current_frame.frame_count; // [Metrics] 재획득 소요 프레임 계산용 시작점
+        }
         prev_fsm_state = fsm.getCurrentState();
 
         // 제어 명령 생성 모듈 구동
         // 칼만 필터가 산출한 정밀 최적 중심 위치와 현재 시스템 상태 문자열 주입
         ServoCommand servo_cmd = control_command.calculateCommand(estimated_pos.x, estimated_pos.y, fsm.getStateString());
+        auto t_after_control = std::chrono::steady_clock::now();
+
         servo_output.sendCommand(servo_cmd);
+        auto t_after_servo = std::chrono::steady_clock::now();
 
         // FPS 계산 (10프레임마다 갱신)
         if (current_frame.frame_count % 10 == 0) {
@@ -632,6 +672,26 @@ int main(int argc, char** argv) {
         // 영상 파일이 끝나면(video_input.read 실패) 위쪽 루프 조건에서 자동으로 종료된다.
         if (showGui) {
             if (cv::waitKey(1) == 27) break; // ESC 누르면 수동 안전 종료
+        }
+        auto t_after_visualize = std::chrono::steady_clock::now();
+
+        // [Metrics] 구간별 소요시간을 CSV 한 줄로 기록
+        if (metrics_csv.is_open()) {
+            auto ms = [](const std::chrono::steady_clock::time_point& a,
+                         const std::chrono::steady_clock::time_point& b) {
+                return std::chrono::duration<double, std::milli>(b - a).count();
+            };
+            metrics_csv << current_frame.frame_count << ","
+                        << fsm.getStateString() << ","
+                        << ms(t_read_start, t_after_read) << ","
+                        << ms(t_after_read, t_after_preprocess) << ","
+                        << ms(t_after_preprocess, t_after_track) << ","
+                        << ms(t_after_track, t_after_control) << ","
+                        << ms(t_after_control, t_after_servo) << ","
+                        << ms(t_after_servo, t_after_visualize) << ","
+                        << ms(t_read_start, t_after_visualize) << ","
+                        << current_fps << ","
+                        << reacquire_frames_this_row << "\n";
         }
 
         // [진단용] 이번 프레임의 "카메라 대기"를 제외한 나머지(전처리~표시~waitKey) 소요 시간 누적
