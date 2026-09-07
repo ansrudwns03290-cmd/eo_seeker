@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <iomanip>
@@ -236,7 +236,9 @@ int main(int argc, char** argv) {
         std::filesystem::path(file_logger.logPath()).replace_extension(".csv");
     std::ofstream metrics_csv(metrics_csv_path);
     if (metrics_csv.is_open()) {
-        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,control_ms,servo_ms,visualize_ms,total_ms,fps,reacquire_frames\n";
+        // [Metrics] track_ms 세부 구간(KCF 코어 / 업스케일 리사이즈 / NCC+ORB 검증 / 30프레임
+        // 주기 재추출) 컬럼 추가. TRACK 상태가 아닌 프레임에서는 전부 0으로 채워진다.
+        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,track_kcf_ms,track_resize_ms,track_verify_ms,track_periodic_ms,track_is_upscaled,control_ms,servo_ms,visualize_ms,total_ms,fps,reacquire_frames\n";
         std::cout << "[Metrics] 프레임별 타이밍 CSV 저장 경로: " << metrics_csv_path.string() << std::endl;
     } else {
         std::cerr << "[Metrics] 타이밍 CSV 파일을 열 수 없습니다: " << metrics_csv_path.string() << std::endl;
@@ -428,6 +430,14 @@ int main(int argc, char** argv) {
         // 해당 없으면 -1 (CSV에는 성공한 프레임 줄에서만 값이 채워짐).
         long long reacquire_frames_this_row = -1;
 
+        // [Metrics] track_ms 세부 구간. TRACK 케이스에서만 채워지고, 그 외 상태(LOST/REACQUIRE)의
+        // 프레임에서는 0으로 CSV에 남는다 (해당 없음을 의미).
+        double track_kcf_ms      = 0.0;
+        double track_resize_ms   = 0.0;
+        double track_verify_ms   = 0.0;
+        double track_periodic_ms = 0.0;
+        int    track_is_upscaled = 0;
+
         /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
         switch (fsm.getCurrentState()) {
 
@@ -447,6 +457,13 @@ int main(int argc, char** argv) {
                 Tracker::TrackingResult res = tracker.update(processed_img,
                 acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                 isFound = res.success;
+
+                // [Metrics] Tracker::update()가 세분화해 돌려준 구간별 소요시간을 CSV용으로 보관
+                track_kcf_ms      = res.kcf_core_ms;
+                track_resize_ms   = res.resize_ms;
+                track_verify_ms   = res.verify_ms;
+                track_periodic_ms = res.periodic_ms;
+                track_is_upscaled = res.is_upscaled ? 1 : 0;
 
                 conf = tracker.getConfidence();
 
@@ -686,6 +703,11 @@ int main(int argc, char** argv) {
                         << ms(t_read_start, t_after_read) << ","
                         << ms(t_after_read, t_after_preprocess) << ","
                         << ms(t_after_preprocess, t_after_track) << ","
+                        << track_kcf_ms << ","
+                        << track_resize_ms << ","
+                        << track_verify_ms << ","
+                        << track_periodic_ms << ","
+                        << track_is_upscaled << ","
                         << ms(t_after_track, t_after_control) << ","
                         << ms(t_after_control, t_after_servo) << ","
                         << ms(t_after_servo, t_after_visualize) << ","
