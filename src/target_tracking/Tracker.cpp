@@ -52,18 +52,19 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
         cv::Rect img_rect(0, 0, workingFrame.cols, workingFrame.rows);
         kcfInputBbox = kcfInputBbox & img_rect;
 
-        // 3. [핵심 안전장치]: 크기 변환이 끝난 workingFrame이 1채널 흑백이라면,
-        // KCF 코어 내부의 고정 채널 충돌을 방지하기 위해 여기서 최종 3채널 컬러 포맷으로 가공합니다.
-        cv::Mat kcfInputFrame;
-        if (workingFrame.channels() == 1) {
-            cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-        } else {
-            kcfInputFrame = workingFrame;
-        }
+        // 3. [2026-09 최적화] cv::TrackerKCF::update()는 CV_Assert(channels==1 || channels==3)로
+        // 1채널(흑백) 입력을 정식 지원한다. 게다가 TrackerKCF::init() 내부에는
+        // "if (image.channels() == 1) params.desc_pca &= ~(CN);" 로직이 있어서, 1채널을 그대로
+        // 넣으면 비싼 Color-Names(CN, 10채널 PCA) 서술자 계산이 자동으로 꺼진다.
+        // 원본 영상이 실제로는 흑백(그레이스케일)이라 색상 정보가 없는데, 예전 코드처럼
+        // GRAY2BGR로 가짜 3채널(R=G=B)을 만들어 넣으면 이 자동 최적화가 무력화되어
+        // 색 정보가 전혀 없는 이미지에 대해 CN 서술자 추출+PCA 압축을 매 프레임 낭비하게 된다.
+        // 그래서 흑백 원본은 변환 없이 그대로 KCF에 전달한다.
+        cv::Mat kcfInputFrame = workingFrame;
 
         // KCF 트래커 엔진 인스턴스 생성
         m_tracker = cv::TrackerKCF::create();
-        // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
+        // ★ 완벽히 정합된 입력 이미지와 확장된 박스로 KCF 심장 시동!
         m_tracker->init(kcfInputFrame, kcfInputBbox);
 
         m_isInitialized = true;
@@ -138,13 +139,10 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         virtualBbox = m_lastBbox;
     }
 
-    // 4. 추적기 입력 포맷 정합 (KCF의 경우 3채널 입력 필요)
-    cv::Mat kcfInputFrame;
-    if (workingFrame.channels() == 1) {
-        cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-    } else {
-        kcfInputFrame = workingFrame;
-    }
+    // 4. [2026-09 최적화] 흑백 원본을 그대로 KCF에 전달한다 (init()과 동일한 근거:
+    // TrackerKCF는 1채널 입력을 정식 지원하며, 1채널이면 내부적으로 비싼 CN 서술자
+    // 계산을 자동으로 꺼준다. GRAY2BGR로 가짜 컬러를 만들면 이 최적화가 무력화된다).
+    cv::Mat kcfInputFrame = workingFrame;
     metric_resize_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_resize_start).count();
 
@@ -559,10 +557,8 @@ Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::R
         kcfInitBbox = origSafeRoi;
     }
 
-    // 5. KCF 고정 채널 안전장치 (가짜 3채널 복제 래핑)
-    if (kcfInitFrame.channels() == 1) {
-        cv::cvtColor(kcfInitFrame, kcfInitFrame, cv::COLOR_GRAY2BGR);
-    }
+    // 5. [2026-09 최적화] 여기도 init()/update()와 동일한 이유로 GRAY2BGR 변환을 제거한다.
+    // (흑백 원본을 가짜 컬러로 바꾸면 TrackerKCF의 CN 자동 비활성화 최적화가 무력화됨)
 
     // 6. 완벽하게 해상도가 정합된 공간에서 KCF 새출발
     m_tracker->init(kcfInitFrame, kcfInitBbox);
