@@ -259,7 +259,11 @@ int main(int argc, char** argv) {
     StateEstimator state_estimator;
     FsmModule fsm;
     ControlCommand control_command(0.02, 0.02, 0.002, 0.002);
-    ServoOutput servo_output(0.0, 180.0, 30.0, 150.0);
+    ServoOutput servo_output;  // 기본값: 팬/틸트 캘리브레이션된 AxisConfig (hardware_output/ServoOutput.hpp)
+    // 제어기 출력 한계를 서보의 실제 가동 범위(tick 한계에서 역산한 각도)와 일치시킨다.
+    // 서로 다르면 제어기가 한계를 넘어 각도를 계속 누적(windup)해서, 표적이 반대로 움직일 때 반응이 늦어진다.
+    control_command.setOutputLimits(servo_output.panMinAngle(), servo_output.panMaxAngle(),
+                                    servo_output.tiltMinAngle(), servo_output.tiltMaxAngle());
 
     // 2. 영상 소스 열기: 인자로 영상 경로가 주어지면 파일 재생, 없으면 라이브 카메라
     bool useFile = (argc > 1);
