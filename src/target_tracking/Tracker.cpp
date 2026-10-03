@@ -52,18 +52,29 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
         cv::Rect img_rect(0, 0, workingFrame.cols, workingFrame.rows);
         kcfInputBbox = kcfInputBbox & img_rect;
 
-        // 3. [핵심 안전장치]: 크기 변환이 끝난 workingFrame이 1채널 흑백이라면,
-        // KCF 코어 내부의 고정 채널 충돌을 방지하기 위해 여기서 최종 3채널 컬러 포맷으로 가공합니다.
-        cv::Mat kcfInputFrame;
-        if (workingFrame.channels() == 1) {
-            cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-        } else {
-            kcfInputFrame = workingFrame;
-        }
+        // 3. [2026-09 최적화] 원본 영상이 실제로는 흑백(그레이스케일)이라 색상 정보가 없는데,
+        // 예전 코드처럼 GRAY2BGR로 가짜 3채널(R=G=B)을 만들어 넣으면 KCF가 색상 정보가 전혀
+        // 없는 이미지에 대해 Color-Names(CN, 10채널 PCA) 서술자 추출+PCA 압축을 매 프레임
+        // 낭비하게 된다. 그래서 흑백 원본은 변환 없이 그대로 KCF에 전달한다.
+        cv::Mat kcfInputFrame = workingFrame;
+
+        // [2026-09 버그 회피] cv::TrackerKCF 기본 Params(desc_pca=CN, desc_npca=GRAY)로 1채널
+        // 입력을 그대로 넣으면, TrackerKCF::init()이 "channels()==1이면 desc_pca에서 CN 비트
+        // 제거"를 자동 수행해 desc_pca가 0이 되는데, 이 상태에서 update() 도중 PCA/비PCA 응답을
+        // 합치는 과정에서 빈 행렬 연산이 발생해 "Matrix operand is an empty matrix" 예외로 죽는
+        // OpenCV 자체의 알려진 문제가 있다(opencv/opencv#22203 — 이 프로젝트 Pi 실기에서도
+        // 동일 증상 재현 확인함). 이를 피하기 위해 desc_pca가 절대 0이 되지 않도록 GRAY를
+        // PCA/비PCA 양쪽에 명시적으로 배정한다. CN(색상)은 애초에 켜지 않으므로 그 연산 절약
+        // 효과는 그대로 유지된다. (오프라인에서 700+ 프레임 반복 실행으로 크래시 없음 확인.)
+        cv::TrackerKCF::Params kcfParams;
+        kcfParams.desc_pca = cv::TrackerKCF::GRAY;
+        kcfParams.desc_npca = cv::TrackerKCF::GRAY;
+        kcfParams.compress_feature = true;
+        kcfParams.compressed_size = 1;
 
         // KCF 트래커 엔진 인스턴스 생성
-        m_tracker = cv::TrackerKCF::create();
-        // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
+        m_tracker = cv::TrackerKCF::create(kcfParams);
+        // ★ 완벽히 정합된 입력 이미지와 확장된 박스로 KCF 심장 시동!
         m_tracker->init(kcfInputFrame, kcfInputBbox);
 
         m_isInitialized = true;
@@ -138,13 +149,10 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         virtualBbox = m_lastBbox;
     }
 
-    // 4. 추적기 입력 포맷 정합 (KCF의 경우 3채널 입력 필요)
-    cv::Mat kcfInputFrame;
-    if (workingFrame.channels() == 1) {
-        cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-    } else {
-        kcfInputFrame = workingFrame;
-    }
+    // 4. [2026-09 최적화] 흑백 원본을 그대로 KCF에 전달한다 (init()과 동일한 근거:
+    // TrackerKCF는 1채널 입력을 정식 지원하며, 1채널이면 내부적으로 비싼 CN 서술자
+    // 계산을 자동으로 꺼준다. GRAY2BGR로 가짜 컬러를 만들면 이 최적화가 무력화된다).
+    cv::Mat kcfInputFrame = workingFrame;
     metric_resize_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_resize_start).count();
 
@@ -540,7 +548,14 @@ Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::R
 
     // 3. 기존 KCF 추적기 구형 기억 파괴 및 재생성
     m_tracker.release();
-    m_tracker = cv::TrackerKCF::create();
+    // [2026-09 버그 회피] init()과 동일한 이유로, desc_pca가 0이 되지 않는 Params를 명시적으로
+    // 사용한다 (opencv/opencv#22203 — 기본 Params로 1채널 입력을 쓰면 크래시 재현됨).
+    cv::TrackerKCF::Params kcfParams;
+    kcfParams.desc_pca = cv::TrackerKCF::GRAY;
+    kcfParams.desc_npca = cv::TrackerKCF::GRAY;
+    kcfParams.compress_feature = true;
+    kcfParams.compressed_size = 1;
+    m_tracker = cv::TrackerKCF::create(kcfParams);
 
     // 4. 스케일 팩터(scaleFactor)에 따른 가공 및 KCF 시동 분기
     cv::Mat kcfInitFrame;
@@ -559,10 +574,8 @@ Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::R
         kcfInitBbox = origSafeRoi;
     }
 
-    // 5. KCF 고정 채널 안전장치 (가짜 3채널 복제 래핑)
-    if (kcfInitFrame.channels() == 1) {
-        cv::cvtColor(kcfInitFrame, kcfInitFrame, cv::COLOR_GRAY2BGR);
-    }
+    // 5. [2026-09 최적화] 여기도 init()/update()와 동일한 이유로 GRAY2BGR 변환을 제거한다.
+    // (흑백 원본을 가짜 컬러로 바꾸면 TrackerKCF의 CN 자동 비활성화 최적화가 무력화됨)
 
     // 6. 완벽하게 해상도가 정합된 공간에서 KCF 새출발
     m_tracker->init(kcfInitFrame, kcfInitBbox);
