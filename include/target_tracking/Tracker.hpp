@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/tracking.hpp>
@@ -18,6 +18,15 @@ public:
         cv::Mat newTemplate;
         std::vector<cv::KeyPoint> newKeypoints;
         cv::Mat newDescriptors;
+
+        // [Metrics] track_ms 세부 구간 계측 (2026-09 FPS 분석용).
+        // update() 맨 끝에서만 채워지므로, 중간에 reinitTracker()가 result를
+        // 통째로 덮어써도(result = reinitTracker(...)) 값이 사라지지 않는다.
+        bool   is_upscaled = false; // 이번 프레임이 업스케일 모드(표적 폭<60px)였는지
+        double resize_ms   = 0.0;   // 업스케일 모드일 때 "풀프레임" resize+cvtColor 비용 (비업스케일 시 0)
+        double kcf_core_ms = 0.0;   // KCF 코어 m_tracker->update() 자체 비용
+        double verify_ms   = 0.0;   // 5프레임마다 도는 verifyTarget(NCC+ORB) 비용 (해당 없으면 0)
+        double periodic_ms = 0.0;   // 30프레임마다 도는 이진화/컨투어/ORB 재추출(+reinit) 비용 (해당 없으면 0)
     };
 
     Tracker();

@@ -1,9 +1,13 @@
 ﻿cmake_minimum_required(VERSION 3.10)
 project(eo_seeker)
 
+if (MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # C++ 표준 설정
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON) 
 
 # OpenCV 패키지 찾기
 find_package(OpenCV REQUIRED)
@@ -12,7 +16,7 @@ find_package(OpenCV REQUIRED)
 # 사용법: cmake --preset pi-debug 또는 -DRASPBERRY_PI_BUILD=ON
 option(RASPBERRY_PI_BUILD "Build with Raspberry Pi hardware output (PCA9685)" OFF)
 
-# 실행 파일 생성
+# 실행 파일 생성q
 # 소스 파일이 늘어날 것에 대비해 변수로 관리하면 편합니다.
 set(SOURCE_FILES
     src/main.cpp

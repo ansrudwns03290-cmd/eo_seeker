@@ -1,9 +1,10 @@
-﻿#include "target_tracking/Tracker.hpp"
+#include "target_tracking/Tracker.hpp"
 #include "common/DebugConfig.hpp"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
-Tracker::Tracker() 
+Tracker::Tracker()
     : m_confidence(0.0f), m_isInitialized(false) {
     // 생성자에서는 객체를 할당하지 않고 init 호출 시 할당하는 것이 메모리 관리에 유리합니다.
     m_orb = cv::ORB::create(150);
@@ -28,7 +29,7 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
     try {
         cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
         if (safeRoi.width <= 0 || safeRoi.height <= 0) return false;
-        
+
         // 1. 메인에서 들어온 프레임을 조작하기 위해 workingFrame 변수로 먼저 안전 복제
         cv::Mat workingFrame = frame.clone();
         cv::Rect kcfInputBbox = bbox;
@@ -64,13 +65,13 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
         m_tracker = cv::TrackerKCF::create();
         // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
         m_tracker->init(kcfInputFrame, kcfInputBbox);
-        
+
         m_isInitialized = true;
-        
-        // [싱크 교정]: update 함수와의 동역학 매칭을 위해 
+
+        // [싱크 교정]: update 함수와의 동역학 매칭을 위해
         // m_lastBbox에는 업스케일링 여부와 상관없이 무조건 '원본 크기(bbox)'를 저장합니다.
-        m_lastBbox = bbox; 
-        
+        m_lastBbox = bbox;
+
         m_confidence = 1.0f;
         m_frameCount = 0;
         m_smallSizeStreak = 0;
@@ -103,13 +104,28 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     if (!m_isInitialized || frame.empty()) {
         return result;
     }
-    
+
+    // [Metrics] track_ms 세부 구간 계측용 로컬 변수. result에 바로 쓰지 않는 이유는,
+    // 아래 30프레임 주기 블록에서 "result = reinitTracker(...)"로 result 전체가
+    // 통째로 교체되는 경로가 있어서, 그보다 먼저 채운 값을 함수 맨 끝에서 한 번에
+    // result로 옮겨야 유실되지 않기 때문.
+    bool   metric_is_upscaled = false;
+    double metric_resize_ms   = 0.0;
+    double metric_kcf_core_ms = 0.0;
+    double metric_verify_ms   = 0.0;
+    double metric_periodic_ms = 0.0;
+
     cv::Mat workingFrame = frame.clone();
     cv::Rect virtualBbox;
 
     // 3. 적응형 해상도 스케일링 (Small Target 처리)
     // 표적이 작을 경우(60px 미만) 2배 확대하여 추적 성능을 높이는 모드 적용
     bool isUpscaledMode = (m_lastBbox.width < 60);
+    metric_is_upscaled = isUpscaledMode;
+
+    // [Metrics] 업스케일 모드일 때 "ROI가 아니라 프레임 전체"를 리사이즈+색변환하는
+    // 비용을 KCF 코어 비용과 분리해서 계측한다.
+    auto t_resize_start = std::chrono::steady_clock::now();
 
     if (isUpscaledMode) {
         cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
@@ -121,7 +137,7 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     } else {
         virtualBbox = m_lastBbox;
     }
-    
+
     // 4. 추적기 입력 포맷 정합 (KCF의 경우 3채널 입력 필요)
     cv::Mat kcfInputFrame;
     if (workingFrame.channels() == 1) {
@@ -129,16 +145,21 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     } else {
         kcfInputFrame = workingFrame;
     }
+    metric_resize_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_resize_start).count();
 
     // 5. KCF 추적 엔진 수행 (핵심 추적)
+    auto t_kcf_start = std::chrono::steady_clock::now();
     bool success = m_tracker->update(kcfInputFrame, virtualBbox);
+    metric_kcf_core_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_kcf_start).count();
     result.success = success;
 
     if (success) {
         // 6. 좌표계 복원 (스케일링 모드였다면 원본 해상도로 환산)
         cv::Rect outBbox;
-        m_frameCount++; 
-        
+        m_frameCount++;
+
         if (isUpscaledMode) {
             outBbox.x = virtualBbox.x / 2;
             outBbox.y = virtualBbox.y / 2;
@@ -149,28 +170,32 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         }
 
         result.bbox = outBbox;
-        
+
         // 7. 추적 신뢰도 평가 및 모델 갱신 로직 (주기적 수행)
         // 수정
         cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, kcfInputFrame.cols, kcfInputFrame.rows);
-        
+
         if (safeRoi.width > 0 && safeRoi.height > 0) {
             cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
-            
+
             // a. 현재 추적 위치의 신뢰도 계산
             if (m_frameCount % 5 == 0) {
+                auto t_verify_start = std::chrono::steady_clock::now();
                 m_confidence = verifyTarget(currentROI, refTemplate, refDescriptors);
+                metric_verify_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t_verify_start).count();
             }
-            
+
             // b. 30프레임 주기마다 수행하는 정밀 모델 검증 및 업데이트
-            if (m_frameCount % 30 == 0) { 
+            if (m_frameCount % 30 == 0) {
+                auto t_periodic_start = std::chrono::steady_clock::now();
                 cv::Mat grayROI;
-                
+
                 // 1) 전처리: 템플릿 갱신을 위한 흑백 변환
                 if (currentROI.channels() == 3) {
                     cv::cvtColor(currentROI, grayROI, cv::COLOR_BGR2GRAY);
                 } else {
-                    grayROI = currentROI.clone(); 
+                    grayROI = currentROI.clone();
                 }
 
                 // 2) 이진화 및 노이즈 제거
@@ -205,9 +230,9 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                 }
 
                 // 4) 표적 크기 기반 모드 스위칭 (Adaptive Mode Management)
-                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth; 
+                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth;
                 if (currentOriginalWidth <= 0) currentOriginalWidth = outBbox.width;
-        
+
                 if (m_confidence > 0.6f) {
                     // 표적 커지면 원본 모드로, 작아지면 업스케일 모드로 전환
                     // -- 단, 단 한 번의 컨투어 측정(조명/그림자에 따라 크게 흔들릴 수 있음)만으로
@@ -306,6 +331,9 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                         }
                     }
                 }
+
+                metric_periodic_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t_periodic_start).count();
             }
         } else {
             m_confidence = 0.0f; // ROI 확보 실패 시 신뢰도 0
@@ -318,6 +346,15 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
         m_isInitialized = false; // 추적기 초기화 상태 해제 (상위 FSM에 재획득 유도)
         std::cout << "[Tracker] Target LOST" << std::endl;
     }
+
+    // [Metrics] 위에서 계산한 세부 구간 값을 최종 result에 반영.
+    // reinitTracker()가 위에서 result를 통째로 재할당했더라도, 이 대입은 그 이후에
+    // 실행되므로 계측값이 사라지지 않는다.
+    result.is_upscaled = metric_is_upscaled;
+    result.resize_ms   = metric_resize_ms;
+    result.kcf_core_ms = metric_kcf_core_ms;
+    result.verify_ms   = metric_verify_ms;
+    result.periodic_ms = metric_periodic_ms;
 
     return result;
 }
@@ -409,13 +446,13 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
 
     cv::Mat res, resizedROI;
     cv::resize(currentROI, resizedROI, refTemplate.size());
-    
+
     // NCC 매칭을 위해 입력 이미지와 템플릿의 채널 수가 다르면, 안전하게 맞춰주는 전처리 단계
     if (resizedROI.channels() != refTemplate.channels()) {
         if (refTemplate.channels() == 1 && resizedROI.channels() == 3) {
             // 정답지가 흑백인데 입력이 컬러라면, 입력을 흑백으로 변환
             cv::cvtColor(resizedROI, resizedROI, cv::COLOR_BGR2GRAY);
-        } 
+        }
         else if (refTemplate.channels() == 3 && resizedROI.channels() == 1) {
             // 정답지가 컬러인데 입력이 흑백이라면, 입력을 가짜 컬러로 확장
             cv::cvtColor(resizedROI, resizedROI, cv::COLOR_GRAY2BGR);
@@ -424,10 +461,10 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
 
     static int cnt = 0;
     cv::matchTemplate(resizedROI, refTemplate, res, cv::TM_CCOEFF_NORMED);
-        
+
     double minVal, maxVal;
     cv::minMaxLoc(res, &minVal, &maxVal);
-    
+
     float rawNcc = static_cast<float>(maxVal);
 
     // ★ [핵심 보정 알고리즘] ★
@@ -445,10 +482,10 @@ float Tracker::calculateNCCConfidence(const cv::Mat& currentROI, const cv::Mat& 
         // 중간 구간 선형 보정 (0.25 ~ 0.48 사이의 점수를 0.0 ~ 1.0으로 확대)
         finalConf = (rawNcc - minThresh) / (maxThresh - minThresh);
     }
-    
+
     // 디버그용 출력으로 실제 원본 점수와 보정 점수를 같이 모니터링합니다.
     // std::cout << "[NCC Debug] Raw: " << rawNcc << " -> Enhanced Conf: " << finalConf << std::endl;
-    
+
     return finalConf;
 }
 
