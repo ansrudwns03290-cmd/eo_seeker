@@ -144,3 +144,19 @@ add_executable(test_acquisition_manager
 target_include_directories(test_acquisition_manager PRIVATE include)
 target_link_libraries(test_acquisition_manager PRIVATE gtest_main ${OpenCV_LIBS})
 gtest_discover_tests(test_acquisition_manager)
+
+# ServoOutput 순수 로직(각도<->tick 변환, tick 클램프, 방향/invert, 한계각 계산) 단위테스트.
+# 하드웨어 접근이 없어 PC/Pi 어디서나 실행된다. 단, Pi 빌드(RASPBERRY_PI_BUILD)에서는 ServoOutput
+# 객체를 만들면 실제 I2C로 서보가 구동되므로, 객체 기반 테스트는 PC 빌드에서만 컴파일된다.
+# (실제 서보 구동 확인은 수동 스모크 테스트 test_servo_output 로 Pi에서 별도 실행)
+add_executable(test_servo_axis
+    tests/test_servo_axis.cpp
+    src/hardware_output/ServoOutput.cpp
+)
+target_include_directories(test_servo_axis PRIVATE include)
+target_link_libraries(test_servo_axis PRIVATE gtest_main)
+if(RASPBERRY_PI_BUILD)
+    # ServoOutput.hpp의 멤버 구성이 RASPBERRY_PI_BUILD에 따라 달라지므로 같은 타깃의 모든 소스에 동일하게 정의
+    target_compile_definitions(test_servo_axis PRIVATE RASPBERRY_PI_BUILD)
+endif()
+gtest_discover_tests(test_servo_axis)
