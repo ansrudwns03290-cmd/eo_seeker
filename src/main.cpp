@@ -103,7 +103,15 @@ public:
         std::string gitHash    = getGitCommitHash();
         std::string videoLabel = (argc > 1) ? fs::path(argv[1]).stem().string() : "camera";
 
-        fs::path logsDir = "logs";
+        // 실행 파일 위치로부터 프로젝트 루트를 탐색해 절대 경로로 logs/ 설정
+        // → CWD와 무관하게 항상 <프로젝트루트>/logs/ 에 저장됨
+        // build/eo_seeker, build/pi-debug/eo_seeker 등 빌드 깊이에 무관하게 동작
+        fs::path exePath     = fs::weakly_canonical(fs::path(argv[0]));
+        fs::path projectRoot = exePath.parent_path();
+        while (projectRoot.has_parent_path() && !fs::exists(projectRoot / "src")) {
+            projectRoot = projectRoot.parent_path();
+        }
+        fs::path logsDir = projectRoot / "logs";
         std::error_code ec;
         fs::create_directories(logsDir, ec);
 
