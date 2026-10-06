@@ -184,6 +184,21 @@ bool AcquisitionManager::detectCandidateInPredictArea(const cv::Mat& processedGr
         return false;
     }
 
+    // 3. 표적이 프레임 경계를 벗어나는 중이면 위 교집합 연산으로 탐색 창이 점점 작아져,
+    //    결국 NCC 템플릿보다 작아진 상태로 cv::matchTemplate에 전달되어 예외가 발생한다
+    //    (templmatch.cpp: "_img.size() <= _templ.size()" assertion -> 프로세스 abort).
+    //    탐색 창이 템플릿보다 작다는 것은 애초에 그 안에서 표적을 찾는 것이 불가능하다는
+    //    뜻이므로, 크래시 대신 "미발견"으로 처리해 FSM이 정상적으로 LOST를 유지하다가
+    //    골든타임 초과 시 SEARCH로 전이되도록 한다.
+    //    (재현: 표적이 화면 좌측으로 이탈하는 move_h_* / occlusion_exit 계열 클립)
+    if (!m_targetTemplate.empty() &&
+        (searchRoi.width < m_targetTemplate.cols || searchRoi.height < m_targetTemplate.rows)) {
+        std::cout << "[Acquisition LOST] 탐색 창(" << searchRoi.width << "x" << searchRoi.height
+                    << ")이 템플릿(" << m_targetTemplate.cols << "x" << m_targetTemplate.rows
+                    << ")보다 작음 - 표적이 프레임 밖으로 이탈한 것으로 간주" << std::endl;
+        return false;
+    }
+
     cv::Mat croppedSearchImg = processedGrayImg(searchRoi);
 
     // [디버그] LOST 상태에서 실제로 탐색한 영역과, 그 시점에 쓰이고 있던 NCC 템플릿을 저장.
@@ -362,6 +377,10 @@ bool AcquisitionManager::isStillSimilarToOriginal(const cv::Mat& candidateTempla
     //    (배경 변화 없이도 조명/각도 변화만으로 한쪽 지표가 흔들릴 수 있어, 너무 엄격하게
     //     둘 다 요구하면 정상적인 갱신까지 막아버릴 수 있다.)
     //    단, 검증 가능한 항목이 하나도 없었다면 보수적으로 통과시킨다.
+    // TODO(2026-10): 이 OR 판정은 실측상 드리프트 방지 기능을 사실상 무력화시키고 있다.
+    //    ORB 기준(Hamming<80 매칭 3개 이상)이 256비트 디스크립터 기준으로 지나치게 느슨해
+    //    항상 통과하고, 그 결과 NCC가 0.86 -> 0.06까지 단조 감소하는 명백한 드리프트
+    //    상황에서도 매 주기 갱신이 승인됐다. AND 조건 전환 또는 ORB 기준 상향 검토 필요.
     if (!nccChecked && !orbChecked) return true;
     return (nccChecked && nccPass) || (orbChecked && orbPass);
 }
