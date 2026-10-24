@@ -32,3 +32,4 @@ __pycache__/
 data/rec_data/*.mjpeg
 data/test_preview.mp4
 data/fighter/*.mp4
+*.mjpeg
