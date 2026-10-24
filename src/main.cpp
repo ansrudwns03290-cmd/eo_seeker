@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
     if (metrics_csv.is_open()) {
         // [Metrics] track_ms 세부 구간(KCF 코어 / 업스케일 리사이즈 / NCC+ORB 검증 / 30프레임
         // 주기 재추출) 컬럼 추가. TRACK 상태가 아닌 프레임에서는 전부 0으로 채워진다.
-        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,track_kcf_ms,track_resize_ms,track_verify_ms,track_periodic_ms,track_is_upscaled,control_ms,servo_ms,visualize_ms,total_ms,fps,reacquire_frames\n";
+        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,track_kcf_ms,track_resize_ms,track_verify_ms,track_periodic_ms,track_is_upscaled,control_ms,servo_ms,visualize_ms,total_ms,reacquire_frames,bbox_x,bbox_y,bbox_w,bbox_h\n";
         std::cout << "[Metrics] 프레임별 타이밍 CSV 저장 경로: " << metrics_csv_path.string() << std::endl;
     } else {
         std::cerr << "[Metrics] 타이밍 CSV 파일을 열 수 없습니다: " << metrics_csv_path.string() << std::endl;
@@ -387,7 +387,8 @@ int main(int argc, char** argv) {
 
     // FPS 계산용
     double  current_fps  = 0.0;
-    int64_t fps_ref_ts   = static_cast<int64_t>(session_start_ms);
+    auto    fps_ref_wall       = std::chrono::steady_clock::now();
+    auto    session_start_wall = std::chrono::steady_clock::now();
 
     // [진단용] 카메라 대기 시간 vs 처리(추적+FSM+표시) 시간 분리 계측
     double accum_read_ms    = 0.0;
@@ -442,6 +443,9 @@ int main(int argc, char** argv) {
         // 해당 없으면 -1 (CSV에는 성공한 프레임 줄에서만 값이 채워짐).
         long long reacquire_frames_this_row = -1;
 
+        // [Metrics] KCF가 확정한 표적 박스. TRACK에서 추적이 채택된 프레임만 채우고, 그 외는 -1.
+        cv::Rect csv_bbox(-1, -1, -1, -1);
+
         // [Metrics] track_ms 세부 구간. TRACK 케이스에서만 채워지고, 그 외 상태(LOST/REACQUIRE)의
         // 프레임에서는 0으로 CSV에 남는다 (해당 없음을 의미).
         double track_kcf_ms      = 0.0;
@@ -495,6 +499,7 @@ int main(int argc, char** argv) {
                     estimated_vel = state_estimator.getEstimatedVelocity();
 
                     fsm.setTargetBox(res.bbox);
+                    csv_bbox = res.bbox;
                 } else{
                     // 추적 실패 시 임시 관성 유지 처리
                     estimated_pos = predicted_pos;
@@ -617,9 +622,10 @@ int main(int argc, char** argv) {
 
         // FPS 계산 (10프레임마다 갱신)
         if (current_frame.frame_count % 10 == 0) {
-            double elapsed_10f = (current_frame.timestamp_ms - fps_ref_ts) / 1000.0;
-            current_fps = (elapsed_10f > 0.0) ? (10.0 / elapsed_10f) : 0.0;
-            fps_ref_ts  = static_cast<int64_t>(current_frame.timestamp_ms);
+            auto now_wall = std::chrono::steady_clock::now();
+            double elapsed_10f = std::chrono::duration<double>(now_wall - fps_ref_wall).count();
+            current_fps  = (elapsed_10f > 0.0) ? (10.0 / elapsed_10f) : 0.0;
+            fps_ref_wall = now_wall;
 
             // [진단용] 최근 10프레임 평균 "카메라 대기 시간" vs "처리 시간" 출력
             std::cout << "[Timing] Camera Wait Avg: " << std::fixed << std::setprecision(2) << (accum_read_ms / 10.0)
@@ -724,8 +730,9 @@ int main(int argc, char** argv) {
                         << ms(t_after_control, t_after_servo) << ","
                         << ms(t_after_servo, t_after_visualize) << ","
                         << ms(t_read_start, t_after_visualize) << ","
-                        << current_fps << ","
-                        << reacquire_frames_this_row << "\n";
+                        << reacquire_frames_this_row << ","
+                        << csv_bbox.x << "," << csv_bbox.y << ","
+                        << csv_bbox.width << "," << csv_bbox.height << "\n";
         }
 
         // [진단용] 이번 프레임의 "카메라 대기"를 제외한 나머지(전처리~표시~waitKey) 소요 시간 누적
@@ -734,19 +741,21 @@ int main(int argc, char** argv) {
 
 CORE_LOOP_EXIT:
     {
-        double elapsed_sec = (last_timestamp_ms - session_start_ms) / 1000.0;
+        double elapsed_sec  = (last_timestamp_ms - session_start_ms) / 1000.0;   // 영상 기준
+        double wall_sec     = std::chrono::duration<double>(std::chrono::steady_clock::now() - session_start_wall).count();
         int    total_frames = current_frame.frame_count;
-        double avg_fps      = (elapsed_sec > 0.0) ? (total_frames / elapsed_sec) : 0.0;
-        double track_rate   = (total_frames > 0)  ? (100.0 * stat_track_frames / total_frames) : 0.0;
+        double avg_fps      = (wall_sec > 0.0)   ? (total_frames / wall_sec) : 0.0;
+        double track_rate   = (total_frames > 0) ? (100.0 * stat_track_frames / total_frames) : 0.0;
 
         std::cout << "\n===== 세션 요약 =====" << std::endl;
-        std::cout << "총 프레임    : " << total_frames << "프레임" << std::endl;
-        std::cout << "총 경과 시간 : " << std::fixed << std::setprecision(1) << elapsed_sec << "s" << std::endl;
-        std::cout << "평균 FPS     : " << std::fixed << std::setprecision(1) << avg_fps << std::endl;
-        std::cout << "추적 성공률  : " << std::fixed << std::setprecision(1) << track_rate << "%" << std::endl;
-        std::cout << "LOST 발생    : " << stat_lost_count << "회" << std::endl;
-        std::cout << "재획득 성공  : " << stat_reacquire_success << "회" << std::endl;
-        std::cout << "재획득 실패  : " << stat_reacquire_fail    << "회" << std::endl;
+        std::cout << "총 프레임     : " << total_frames << "프레임" << std::endl;
+        std::cout << "영상 경과 시간: " << std::fixed << std::setprecision(1) << elapsed_sec << "s" << std::endl;
+        std::cout << "실행 시간     : " << wall_sec << "s" << std::endl;
+        std::cout << "평균 처리 FPS : " << avg_fps << std::endl;
+        std::cout << "추적 성공률   : " << track_rate << "%" << std::endl;
+        std::cout << "LOST 발생     : " << stat_lost_count << "회" << std::endl;
+        std::cout << "재획득 성공   : " << stat_reacquire_success << "회" << std::endl;
+        std::cout << "재획득 실패   : " << stat_reacquire_fail    << "회" << std::endl;
         std::cout << "=====================" << std::endl;
     }
     std::cout << "[System] 루프 종료" << std::endl;
