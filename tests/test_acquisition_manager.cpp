@@ -64,3 +64,21 @@ TEST(AcquisitionManagerTest, DetectCandidateFailsOnInvalidPredictRect) {
 
     EXPECT_FALSE(acq.detectCandidateInPredictArea(gray, invalidRect, 80, outBox));
 }
+
+// 표적이 프레임 경계로 이탈해 탐색 창이 템플릿보다 작아지는 경우
+// (재현: move_h_mid_01 프레임 109). 크래시 없이 미발견(false)이어야 한다.
+TEST(AcquisitionManagerTest, DetectCandidateReturnsFalseWhenSearchWindowSmallerThanTemplate) {
+    AcquisitionManager acq;
+    acq.setTargetModel(makeTexturedObjectRoi());
+    const cv::Mat& tmpl = acq.getTargetTemplate();
+    ASSERT_FALSE(tmpl.empty());
+
+    cv::Mat gray(240, 320, CV_8UC1, cv::Scalar(50));
+    // 예측 위치를 우하단 모서리 밖으로 → 경계 교집합 후 탐색 창이 템플릿보다 작아짐
+    cv::Rect predictArea(130, 220, 60, 60);
+    cv::Rect outBox;
+
+    bool found = true;
+    EXPECT_NO_THROW(found = acq.detectCandidateInPredictArea(gray, predictArea, 200, outBox));
+    EXPECT_FALSE(found);
+}
