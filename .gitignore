@@ -5,9 +5,11 @@
 *.exe
 *.txt
 !CMakeLists.txt
+!scripts/bench_list.txt
 *.txt_src
 *.png
 CLAUDE.md
+__pycache__/
 
 # 빌드 폴더 무시
 build/
