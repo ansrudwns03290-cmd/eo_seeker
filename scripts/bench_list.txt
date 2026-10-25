@@ -1,10 +1,10 @@
 # scripts/bench_list.txt
 # 벤치마크 기준 영상 (레포 루트 기준 경로). 바꾸면 기준선이 달라지므로 변경 이력 기록.
-data/fighter/static_light01_01.mp4
-data/fighter/move_h_slow_01.mp4
-data/fighter/move_h_fast_01.mp4
-data/fighter/move_v_fast_01.mp4
-data/fighter/scale_far2near_01.mp4
-data/fighter/occlusion_block_01.mp4
-data/fighter/occlusion_exit_01.mp4
-data/fighter/complex_01.mp4
+data/aircraft/static_light01_01.mp4
+data/aircraft/move_h_slow_01.mp4
+data/aircraft/move_h_fast_01.mp4
+data/aircraft/move_v_fast_01.mp4
+data/aircraft/scale_far2near_01.mp4
+data/aircraft/occlusion_block_01.mp4
+data/aircraft/occlusion_exit_01.mp4
+data/aircraft/complex_01.mp4
