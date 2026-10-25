@@ -64,21 +64,32 @@
         {
             "name": "pi-debug",
             "displayName": "Raspberry Pi Debug",
-            "inherits": "base",
             "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/${presetName}",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
-            },
+        },
             "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug",
                 "RASPBERRY_PI_BUILD": "ON"
+            }
+        },
+        {
+            "name": "pi-release",
+            "displayName": "Raspberry Pi Release",
+            "inherits": "pi-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
             }
         }
     ],
     "buildPresets": [
         { "name": "windows-debug", "configurePreset": "windows-debug" },
         { "name": "windows-release", "configurePreset": "windows-release" },
-        { "name": "pi-debug", "configurePreset": "pi-debug" }
+        { "name": "pi-debug", "configurePreset": "pi-debug" },
+        { "name": "pi-release", "configurePreset": "pi-release" }
     ]
 }
