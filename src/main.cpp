@@ -379,6 +379,8 @@ int main(int argc, char** argv) {
     int   stat_lost_count        = 0;
     int   stat_reacquire_success = 0;
     int   stat_reacquire_fail    = 0;
+    bool        search_logged = false;
+    std::string exit_reason   = "EOF";   
     FSMState prev_fsm_state      = FSMState::TRACK;
 
     // [Metrics] LOST 진입 시점의 프레임 번호. REACQUIRE 성공 시점과의 차이로
@@ -592,12 +594,17 @@ int main(int argc, char** argv) {
                 }
                 break;
             }
-
             case FSMState::SEARCH: {
-                // LOST 상태에서 1.5초 골든타임 오버 시 FSM 내부 update문에서 SEARCH로 강제 진입함
-                // 메인 중앙 제어 규칙에 의거, 리셋 처리를 위해 break하여 안전 해제 구역으로 탈출
-                std::cout << "[System Central Control] 표적 완전 상실로 제어를 종료합니다." << std::endl;
-                goto CORE_LOOP_EXIT; // 이중 루프 또는 제어권 완전 탈출을 위한 정석적인 goto 핸들링
+                // 표적 완전 상실. 재탐색은 미구현이므로 대기 상태로 유지(서보 정지는 ControlCommand에서 처리).
+                // 측정 구간을 영상 전체로 고정하기 위해 종료하지 않고 EOF까지 진행한다.
+                if (!search_logged) {
+                    std::cout << "[System] SEARCH 진입 (frame " << current_frame.frame_count
+                              << "), 재탐색 미구현 - EOF까지 대기" << std::endl;
+                    search_logged = true;
+                }
+                isFound = false;
+                conf    = 0.0f;
+                break;
             }
         }
         auto t_after_track = std::chrono::steady_clock::now();
@@ -739,7 +746,6 @@ int main(int argc, char** argv) {
         accum_process_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_after_read).count();
     }
 
-CORE_LOOP_EXIT:
     {
         double elapsed_sec  = (last_timestamp_ms - session_start_ms) / 1000.0;   // 영상 기준
         double wall_sec     = std::chrono::duration<double>(std::chrono::steady_clock::now() - session_start_wall).count();
@@ -756,6 +762,7 @@ CORE_LOOP_EXIT:
         std::cout << "LOST 발생     : " << stat_lost_count << "회" << std::endl;
         std::cout << "재획득 성공   : " << stat_reacquire_success << "회" << std::endl;
         std::cout << "재획득 실패   : " << stat_reacquire_fail    << "회" << std::endl;
+        std::cout << "종료 사유     : " << exit_reason << std::endl;
         std::cout << "=====================" << std::endl;
     }
     std::cout << "[System] 루프 종료" << std::endl;
