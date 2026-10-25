@@ -15,6 +15,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "[FAIL] 커밋되지 않은 변경이 있음. 결과의 커밋 해시와 코드가 달라지므로 커밋 후 실행"; exit 1
 fi
 HASH=$(git rev-parse --short HEAD)
+cmake --build --preset pi-release -j4 > /dev/null || { echo "[FAIL] 빌드 실패"; exit 1; }
+
 [[ -x "$BIN" ]] || { echo "[FAIL] $BIN 없음 (cmake --build --preset pi-release)"; exit 1; }
 grep -q 'CMAKE_BUILD_TYPE:STRING=Release' build/pi-release/CMakeCache.txt \
   || { echo "[FAIL] Release 빌드 아님"; exit 1; }
@@ -77,4 +79,8 @@ print(g.round(2).to_string())
 EOF
 
 echo "[Done] 결과: $OUT"
+
+mkdir -p "$OUT/csv"
+exec > >(tee -a "$OUT/run.log") 2>&1   # ← 추가: 콘솔 출력 전체를 run.log에도 기록
+
 exit $FAIL
