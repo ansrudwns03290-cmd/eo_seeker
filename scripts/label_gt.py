@@ -17,5 +17,6 @@ while True:
         x, y, w, h = cv2.selectROI("GT", f, False)
         rows.append([idx, x, y, w, h, int(w > 0)])         # c(취소) → visible=0
     idx += 1
+
 with open(a.video.rsplit(".", 1)[0] + suffix, "w", newline="") as fp:
-    csv.writer(fp).writerows([["frame", "x", "y", "w", "h", "visible"]] + rows)
+    csv.writer(fp, lineterminator="\n").writerows([["frame", "x", "y", "w", "h", "visible"]] + rows)
