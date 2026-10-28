@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GT vs 추적기 결과 재생 뷰어
 사용: python3 scripts/view_eval.py <clip> --commit 9c55168 [--run 51] [--start 120] [--delay 33]
-  초록 = GT(보간), 빨강 = 추적기 bbox, 노랑 글자 = 전환 구간(평가 제외)
+  red = GT(보간), green = 추적기 bbox, 노랑 글자 = 전환 구간(평가 제외)
   키: space 일시정지/재생, d 다음 프레임, a 이전 프레임, q 종료
 """
 import argparse, glob, os

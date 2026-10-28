@@ -9,26 +9,7 @@ VideoInput::VideoInput() : frame_count_(0) {
 VideoInput::~VideoInput() {
     release();
 }
-/*
-bool VideoInput::open(int camera_id) {
-    // 카메라 열기 시도 [cite: 70]
-    if (!cap_.open(camera_id)) {
-        std::cerr << "[Error] Failed to open camera ID: " << camera_id << std::endl;
-        return false;
-    }
 
-    // 프로젝트 표준 사양 강제 설정 (640x480) [cite: 69, 444]
-    setResolution(640, 480);
-    
-    // 실시간성 확보: 오래된 프레임이 쌓이지 않도록 버퍼 1로 제한 [cite: 70, 448]
-    cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
-
-    // [진단용] 드라이버가 보고하는 이론상 FPS 확인 (실측치와 비교용, 참고 수치)
-    std::cout << "[VideoInput] Driver-reported FPS: " << cap_.get(cv::CAP_PROP_FPS) << std::endl;
-
-    return cap_.isOpened();
-}
-*/
 bool VideoInput::open(int camera_id) {
     const int W = 640;
     const int H = 480;
@@ -45,7 +26,7 @@ bool VideoInput::open(int camera_id) {
         return false;
     }
 
-    // 예열 단계: 오래된 프레임을 버려서 실시간성 확보
+    // 예열: AE/AWB 수렴 전 어두운 프레임 폐기 (미적용 시 첫 ROI가 검게 나와 표적 모델 오염)
     for(int i=0; i<N; i++){
         cv::Mat temp;
         if(!cap_.read(temp) || temp.empty()){
