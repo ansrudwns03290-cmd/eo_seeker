@@ -9,7 +9,7 @@ VideoInput::VideoInput() : frame_count_(0) {
 VideoInput::~VideoInput() {
     release();
 }
-
+/*
 bool VideoInput::open(int camera_id) {
     // 카메라 열기 시도 [cite: 70]
     if (!cap_.open(camera_id)) {
@@ -28,6 +28,52 @@ bool VideoInput::open(int camera_id) {
 
     return cap_.isOpened();
 }
+*/
+bool VideoInput::open(int camera_id) {
+    const int W = 640;
+    const int H = 480;
+    const int FPS = 30;
+    const int N = 30;
+
+    auto pipeline = "libcamerasrc ! video/x-raw, width=" + std::to_string(W) +
+                    ", height=" + std::to_string(H) + 
+                    ", framerate=" + std::to_string(FPS) +
+                    "/1 ! videoconvert ! video/x-raw, format=BGR ! appsink drop=true max-buffers=1"; 
+
+    if (!cap_.open(pipeline, cv::CAP_GSTREAMER)) {
+        std::cerr << "[Error] Failed to open " << pipeline << std::endl;
+        return false;
+    }
+
+    // 예열 단계: 오래된 프레임을 버려서 실시간성 확보
+    for(int i=0; i<N; i++){
+        cv::Mat temp;
+        if(!cap_.read(temp) || temp.empty()){
+            std::cerr << "[Error] Failed to read frame during warm-up (" << i << "/" << N << ")" << std::endl;
+            cap_.release();
+            return false;
+        }
+    }
+
+    cv::Mat probe;
+    if (!cap_.read(probe)) {
+        std::cerr << "[Error] Failed to read initial frame " << pipeline <<  std::endl;
+        cap_.release();
+        return false;
+    }
+
+    if (probe.cols != W || probe.rows != H) {
+        std::cerr << "[Error] returned unexpected resolution: "
+                  << probe.cols << "x" << probe.rows << std::endl;
+        cap_.release();
+        return false;
+    }
+
+    std::cout << "[Video Input] BackendName: " << cap_.getBackendName() << std::endl;
+    std::cout << "[Video Input] Resolution: " << probe.cols << "x" << probe.rows << " at " << cap_.get(cv::CAP_PROP_FPS) << " FPS" << std::endl;
+    return true;
+}
+
 
 bool VideoInput::openFile(const std::string& path) {
     if (!cap_.open(path)) {
