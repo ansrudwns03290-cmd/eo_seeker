@@ -23,6 +23,7 @@ set(SOURCE_FILES
     src/input/VideoInput.cpp
     src/acquisition/AcquisitionManager.cpp
     src/target_tracking/Tracker.cpp
+    src/target_tracking/KcfGeometry.cpp
     src/fsm/FsmModule.cpp
     src/control/ControlCommand.cpp
     src/preprocessing/Preprocessor.cpp
@@ -98,6 +99,7 @@ gtest_discover_tests(test_state_estimator)
 add_executable(test_tracker
     tests/test_tracker.cpp
     src/target_tracking/Tracker.cpp
+    src/target_tracking/KcfGeometry.cpp
 )
 target_include_directories(test_tracker PRIVATE include)
 target_link_libraries(test_tracker PRIVATE gtest_main ${OpenCV_LIBS})
@@ -160,3 +162,12 @@ if(RASPBERRY_PI_BUILD)
     target_compile_definitions(test_servo_axis PRIVATE RASPBERRY_PI_BUILD)
 endif()
 gtest_discover_tests(test_servo_axis)
+
+# KcfGeometry(KCF 배율·DFT 친화 스냅·좌표 복원, EO-33/EO-5) 단위테스트: 프레임 없이 순수 계산만 검증.
+add_executable(test_kcf_geometry
+    tests/test_kcf_geometry.cpp
+    src/target_tracking/KcfGeometry.cpp
+)
+target_include_directories(test_kcf_geometry PRIVATE include)
+target_link_libraries(test_kcf_geometry PRIVATE gtest_main ${OpenCV_LIBS})
+gtest_discover_tests(test_kcf_geometry)

@@ -1,5 +1,6 @@
 #include "target_tracking/Tracker.hpp"
 #include "common/DebugConfig.hpp"
+#include "target_tracking/KcfGeometry.hpp"
 #include <iostream>
 #include <algorithm>
 #include <chrono>
@@ -30,47 +31,15 @@ bool Tracker::init(const cv::Mat& frame, const cv::Rect& bbox, const cv::Mat& te
         cv::Rect safeRoi = bbox & cv::Rect(0, 0, frame.cols, frame.rows);
         if (safeRoi.width <= 0 || safeRoi.height <= 0) return false;
 
-        // 1. 메인에서 들어온 프레임을 조작하기 위해 workingFrame 변수로 먼저 안전 복제
-        cv::Mat workingFrame = frame.clone();
-        cv::Rect kcfInputBbox = bbox;
-
-        // 표적 가로 길이가 60픽셀보다 작다면 업스케일링 적용
-        bool isUpscaledMode = (bbox.width < 60);
-        if (isUpscaledMode) {
-            std::cout << "[Tracker:Upscaling] Target too small (" << bbox.width
-                      << "px). Scaling up image by 2x for KCF." << std::endl;
-
-            cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
-
-            // KCF에 입력할 사각형 좌표도 정확하게 2배 확대
-            kcfInputBbox.x = bbox.x * 2;
-            kcfInputBbox.y = bbox.y * 2;
-            kcfInputBbox.width = bbox.width * 2;
-            kcfInputBbox.height = bbox.height * 2;
-        }
-
-        cv::Rect img_rect(0, 0, workingFrame.cols, workingFrame.rows);
-        kcfInputBbox = kcfInputBbox & img_rect;
-
-        // 3. [핵심 안전장치]: 크기 변환이 끝난 workingFrame이 1채널 흑백이라면,
-        // KCF 코어 내부의 고정 채널 충돌을 방지하기 위해 여기서 최종 3채널 컬러 포맷으로 가공합니다.
-        cv::Mat kcfInputFrame;
-        if (workingFrame.channels() == 1) {
-            cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-        } else {
-            kcfInputFrame = workingFrame;
-        }
-
-        // KCF 트래커 엔진 인스턴스 생성
-        m_tracker = cv::TrackerKCF::create();
-        // ★ 완벽히 정합된 3채널 이미지와 확장된 박스로 KCF 심장 시동!
-        m_tracker->init(kcfInputFrame, kcfInputBbox);
+        // [EO-33/EO-5] 출력 크기는 원 ROI로 고정하고, 배율·스냅은 startKcf()에서 공통 처리
+        m_origSize = safeRoi.size();
+        startKcf(frame, safeRoi, safeRoi.width < 60);
 
         m_isInitialized = true;
 
         // [싱크 교정]: update 함수와의 동역학 매칭을 위해
         // m_lastBbox에는 업스케일링 여부와 상관없이 무조건 '원본 크기(bbox)'를 저장합니다.
-        m_lastBbox = bbox;
+        m_lastBbox = safeRoi;
 
         m_confidence = 1.0f;
         m_frameCount = 0;
@@ -115,68 +84,50 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     double metric_verify_ms   = 0.0;
     double metric_periodic_ms = 0.0;
 
-    cv::Mat workingFrame = frame.clone();
-    cv::Rect virtualBbox;
-
-    // 3. 적응형 해상도 스케일링 (Small Target 처리)
-    // 표적이 작을 경우(60px 미만) 2배 확대하여 추적 성능을 높이는 모드 적용
-    bool isUpscaledMode = (m_lastBbox.width < 60);
+    // 3. KCF 입력 프레임 생성 (배율은 init/reinit에서 정해진 m_kcfScale 고정)
+    const bool isUpscaledMode = (m_kcfScale > 1.0f);
     metric_is_upscaled = isUpscaledMode;
+    const float kcfScaleUsed = m_kcfScale;           // 아래 reinit으로 배율이 바뀌어도 이번 프레임 값 기록
+    const cv::Size kcfPatchUsed = m_kcfPatch;
 
-    // [Metrics] 업스케일 모드일 때 "ROI가 아니라 프레임 전체"를 리사이즈+색변환하는
+    // [Metrics] 배율 != 1일 때 "ROI가 아니라 프레임 전체"를 리사이즈+색변환하는
     // 비용을 KCF 코어 비용과 분리해서 계측한다.
     auto t_resize_start = std::chrono::steady_clock::now();
-
-    if (isUpscaledMode) {
-        cv::resize(workingFrame, workingFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
-        virtualBbox = m_lastBbox;
-        virtualBbox.x *= 2;
-        virtualBbox.y *= 2;
-        virtualBbox.width *= 2;
-        virtualBbox.height *= 2;
-    } else {
-        virtualBbox = m_lastBbox;
-    }
-
-    // 4. 추적기 입력 포맷 정합 (KCF의 경우 3채널 입력 필요)
-    cv::Mat kcfInputFrame;
-    if (workingFrame.channels() == 1) {
-        cv::cvtColor(workingFrame, kcfInputFrame, cv::COLOR_GRAY2BGR);
-    } else {
-        kcfInputFrame = workingFrame;
-    }
+    cv::Mat kcfInputFrame = makeKcfFrame(frame);
     metric_resize_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_resize_start).count();
 
-    // 5. KCF 추적 엔진 수행 (핵심 추적)
+    // 4. KCF 추적 엔진 수행 (핵심 추적). bbox는 출력 전용 인자.
+    cv::Rect kcfBox;               // KCF 출력 전용 (입력값은 결과에 영향 없음)
     auto t_kcf_start = std::chrono::steady_clock::now();
-    bool success = m_tracker->update(kcfInputFrame, virtualBbox);
+    bool success = m_tracker->update(kcfInputFrame, kcfBox);
     metric_kcf_core_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_kcf_start).count();
     result.success = success;
 
     if (success) {
-        // 6. 좌표계 복원 (스케일링 모드였다면 원본 해상도로 환산)
-        cv::Rect outBbox;
+        // 5. 좌표계 복원: 중심만 /s, 크기는 원 ROI 고정
+        cv::Rect outBbox = kcfgeom::toOrigBox(kcfBox, m_kcfScale, m_origSize);
         m_frameCount++;
-
-        if (isUpscaledMode) {
-            outBbox.x = virtualBbox.x / 2;
-            outBbox.y = virtualBbox.y / 2;
-            outBbox.width = virtualBbox.width / 2;
-            outBbox.height = virtualBbox.height / 2;
-        } else {
-            outBbox = virtualBbox;
-        }
 
         result.bbox = outBbox;
 
-        // 7. 추적 신뢰도 평가 및 모델 갱신 로직 (주기적 수행)
-        // 수정
-        cv::Rect safeRoi = virtualBbox & cv::Rect(0, 0, kcfInputFrame.cols, kcfInputFrame.rows);
+        // 6. 추적 신뢰도 평가 및 모델 갱신 로직 (주기적 수행)
+        // 검증용 ROI는 KCF 입력(축소될 수 있음)이 아니라 원본 프레임에서 자른다.
+        // 축소 ROI에서는 ORB 특징점이 사라져 가짜 LOST가 나기 때문.
+        // 배율 > 1(소형 표적)이면 기존과 같은 해상도로 보도록 ROI만 확대한다.
+        cv::Rect safeRoi = outBbox & cv::Rect(0, 0, frame.cols, frame.rows);
+        const float roiScale = isUpscaledMode ? m_kcfScale : 1.0f;
 
         if (safeRoi.width > 0 && safeRoi.height > 0) {
-            cv::Mat currentROI = kcfInputFrame(safeRoi).clone();
+            cv::Mat currentROI = frame(safeRoi).clone();
+            if (isUpscaledMode) {
+                cv::resize(currentROI, currentROI, cv::Size(), roiScale, roiScale, cv::INTER_LINEAR);
+            }
+            // 기존 동작(3채널 KCF 입력에서 크롭)과 템플릿 채널을 맞춘다
+            if (currentROI.channels() == 1) {
+                cv::cvtColor(currentROI, currentROI, cv::COLOR_GRAY2BGR);
+            }
 
             // a. 현재 추적 위치의 신뢰도 계산
             if (m_frameCount % 5 == 0) {
@@ -230,30 +181,32 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                 }
 
                 // 4) 표적 크기 기반 모드 스위칭 (Adaptive Mode Management)
-                int currentOriginalWidth = isUpscaledMode ? (maxObjectWidth / 2) : maxObjectWidth;
+                int currentOriginalWidth = static_cast<int>(std::lround(maxObjectWidth / roiScale));
                 if (currentOriginalWidth <= 0) currentOriginalWidth = outBbox.width;
 
                 if (m_confidence > 0.6f) {
-                    // 표적 커지면 원본 모드로, 작아지면 업스케일 모드로 전환
+                    // 표적 커지면 원본 모드로, 작아지면 소형 모드로 전환 (배율은 reinit에서 재계산)
                     // -- 단, 단 한 번의 컨투어 측정(조명/그림자에 따라 크게 흔들릴 수 있음)만으로
                     //    KCF를 통째로 재시작(reinitTracker)하면, 그 순간 박스가 아주 살짝만
                     //    표적에서 벗어나 있어도 트래커가 엉뚱한 위치를 "정답"으로 확신하고
                     //    이후 계속 그쪽을 추적하는 사고로 이어질 수 있다.
                     //    그래서 (1) 같은 판정이 연속 N회 나올 때만, (2) 그 시점의 박스 위치가
                     //    직전 프레임 대비 비정상적으로 튀지 않았을 때만 실제 전환을 수행한다.
-                    if (isUpscaledMode && currentOriginalWidth >= 75) {
+                    if (m_smallMode && currentOriginalWidth >= 75) {
                         m_largeSizeStreak++;
                         m_smallSizeStreak = 0;
 
                         if (m_largeSizeStreak >= REINIT_CONFIRM_STREAK) {
                             if (isReinitPositionSane(outBbox)) {
                                 std::cout << "[Tracker] 표적 크기 75px 도달(연속 확인)! 원본 모드로 전환" << std::endl;
-                                cv::Rect contourRel = maxContourBox; // 이미 1x 기준(업스케일 시 위에서 보정 필요)
+                                cv::Rect contourRel = maxContourBox; // currentROI(roiScale배) 기준 -> 1x로 환산
                                 if (isUpscaledMode) {
-                                    contourRel.x /= 2; contourRel.y /= 2;
-                                    contourRel.width /= 2; contourRel.height /= 2;
+                                    contourRel.x = static_cast<int>(contourRel.x / roiScale);
+                                    contourRel.y = static_cast<int>(contourRel.y / roiScale);
+                                    contourRel.width = static_cast<int>(contourRel.width / roiScale);
+                                    contourRel.height = static_cast<int>(contourRel.height / roiScale);
                                 }
-                                result = reinitTracker(frame, outBbox, 1.0f, contourRel);
+                                result = reinitTracker(frame, outBbox, false, contourRel);
                                 result.bbox = outBbox;
                                 result.success = true;
                             } else {
@@ -262,15 +215,15 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
                             m_largeSizeStreak = 0;
                         }
                     }
-                    else if (!isUpscaledMode && currentOriginalWidth < 50) {
+                    else if (!m_smallMode && currentOriginalWidth < 50) {
                         m_smallSizeStreak++;
                         m_largeSizeStreak = 0;
 
                         if (m_smallSizeStreak >= REINIT_CONFIRM_STREAK) {
                             if (isReinitPositionSane(outBbox)) {
-                                std::cout << "[Tracker] 표적 크기 50px 미만(연속 확인)! 업스케일 모드로 전환" << std::endl;
-                                cv::Rect contourRel = maxContourBox; // 비업스케일 상태에서 측정했으므로 이미 1x 기준
-                                result = reinitTracker(frame, outBbox, 2.0f, contourRel);
+                                std::cout << "[Tracker] 표적 크기 50px 미만(연속 확인)! 소형 모드로 전환" << std::endl;
+                                cv::Rect contourRel = maxContourBox; // 비소형 모드(roiScale=1)에서 측정했으므로 이미 1x 기준
+                                result = reinitTracker(frame, outBbox, true, contourRel);
                                 result.bbox = outBbox;
                                 result.success = true;
                             } else {
@@ -355,6 +308,9 @@ Tracker::TrackingResult Tracker::update(const cv::Mat& frame, const cv::Mat& ref
     result.kcf_core_ms = metric_kcf_core_ms;
     result.verify_ms   = metric_verify_ms;
     result.periodic_ms = metric_periodic_ms;
+    result.kcf_scale   = kcfScaleUsed;
+    result.kcf_patch_w = kcfPatchUsed.width;
+    result.kcf_patch_h = kcfPatchUsed.height;
 
     return result;
 }
@@ -514,7 +470,7 @@ bool Tracker::isReinitPositionSane(const cv::Rect& newBox) const {
     return true;
 }
 
-Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor,
+Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, bool smallMode,
                                                 const cv::Rect& tightObjectRectRel) {
     TrackingResult result;
     result.needTemplateUpdate = true;
@@ -538,34 +494,10 @@ Tracker::TrackingResult Tracker::reinitTracker(const cv::Mat& frame, const cv::R
     m_orb->detectAndCompute(orbSourceROI, cv::noArray(), kp, result.newDescriptors);
     std::cout << "[Tracker:Reset] New ORB descriptors : " << result.newDescriptors.rows << " points" << std::endl;
 
-    // 3. 기존 KCF 추적기 구형 기억 파괴 및 재생성
+    // 3. 기존 KCF 추적기 폐기 후 init()과 같은 배율+스냅 경로로 재시동.
+    // 출력 크기(m_origSize)는 유지한다 (outBbox 크기 = m_origSize).
     m_tracker.release();
-    m_tracker = cv::TrackerKCF::create();
-
-    // 4. 스케일 팩터(scaleFactor)에 따른 가공 및 KCF 시동 분기
-    cv::Mat kcfInitFrame;
-    cv::Rect kcfInitBbox;
-
-    if (std::abs(scaleFactor - 2.0f) < 0.01f) {
-        // [2배 업스케일링 모드 진입인 경우]
-        cv::Mat upScaledFrame = frame.clone();
-        cv::resize(upScaledFrame, upScaledFrame, cv::Size(), 2.0, 2.0, cv::INTER_LINEAR);
-        kcfInitFrame = upScaledFrame;
-
-        kcfInitBbox = cv::Rect(outBbox.x * 2, outBbox.y * 2, outBbox.width * 2, outBbox.height * 2);
-    } else {
-        // [1배 원본 모드 진입 혹은 유지인 경우]
-        kcfInitFrame = frame.clone();
-        kcfInitBbox = origSafeRoi;
-    }
-
-    // 5. KCF 고정 채널 안전장치 (가짜 3채널 복제 래핑)
-    if (kcfInitFrame.channels() == 1) {
-        cv::cvtColor(kcfInitFrame, kcfInitFrame, cv::COLOR_GRAY2BGR);
-    }
-
-    // 6. 완벽하게 해상도가 정합된 공간에서 KCF 새출발
-    m_tracker->init(kcfInitFrame, kcfInitBbox);
+    startKcf(frame, outBbox, smallMode);
     m_lastBbox = outBbox; // 1배 원본 좌표 박제로 동역학 싱크 수립
 
     return result;
@@ -619,4 +551,41 @@ float Tracker::verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDesc
     }
 
     return finalScore;
+}
+
+cv::Mat Tracker::makeKcfFrame(const cv::Mat& frame) const {
+    cv::Mat out;
+    if (std::abs(m_kcfScale - 1.0f) < 1e-6f) {
+        out = frame;
+    } else {
+        // 축소는 INTER_AREA(앨리어싱 억제), 확대는 기존과 같은 INTER_LINEAR
+        const int interp = (m_kcfScale < 1.0f) ? cv::INTER_AREA : cv::INTER_LINEAR;
+        cv::resize(frame, out, cv::Size(), m_kcfScale, m_kcfScale, interp);
+    }
+    // KCF 내부 고정 채널 충돌 방지 (가짜 3채널). PR #4(그레이스케일) 결정 전까지 기존 동작 유지.
+    if (out.channels() == 1) {
+        cv::cvtColor(out, out, cv::COLOR_GRAY2BGR);
+    } else if (out.data == frame.data) {
+        out = frame.clone();
+    }
+    return out;
+}
+
+void Tracker::startKcf(const cv::Mat& frame, const cv::Rect& origBox, bool smallMode) {
+    m_smallMode = smallMode;
+    m_kcfScale  = kcfgeom::computeScale(origBox.size(), smallMode);
+
+    cv::Mat kcfFrame = makeKcfFrame(frame);
+    const cv::Rect kcfBox = kcfgeom::toKcfBox(origBox, m_kcfScale, kcfFrame.size());
+    m_kcfPatch = cv::Size(kcfBox.width * 2, kcfBox.height * 2);
+
+    // resize=false: KCF 내부 1회 1/2 축소를 끄고 외부 배율 하나로 단일화 -> FFT 패치 = 2 × kcfBox
+    cv::TrackerKCF::Params params;
+    params.resize = false;
+    m_tracker = cv::TrackerKCF::create(params);
+    m_tracker->init(kcfFrame, kcfBox);
+
+    std::cout << "[Tracker] KCF start: orig " << origBox.width << "x" << origBox.height
+              << " -> scale " << m_kcfScale << ", kcf box " << kcfBox.width << "x" << kcfBox.height
+              << " (patch " << m_kcfPatch.width << "x" << m_kcfPatch.height << ")" << std::endl;
 }
