@@ -391,6 +391,12 @@ void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv:
         return;
     }
 
+    // TODO(직접) [P0 템플릿 갱신 승인 차단]
+    //   디스크립터가 kMinUpdateDescriptors 미만이면 갱신 전체(템플릿 + 디스크립터)를 거부하고 이전 모델을 유지한다.
+    //   - 거부 시 개수가 들어간 로그를 남긴다 (기존 "[Acquisition] 갱신 거부: ..." 형식과 맞출 것)
+    //   - 이 검사를 앵커 판정(isStillSimilarToOriginal)보다 앞에 둘지 뒤에 둘지 정하고, 이유를 설명할 수 있어야 한다
+    //   - 확인: ./build/pi-release/test_acquisition_manager (UpdateGateTest, AcceptsUpdateAtMinDescriptors 등 8개 통과)
+
     if (!isStillSimilarToOriginal(newTemplate, newDescriptors)) {
         std::cout << "[Acquisition] 갱신 거부: 최초 등록된 원본 표적과 너무 달라짐 (드리프트/배경 오검출 의심)" << std::endl;
         return;
