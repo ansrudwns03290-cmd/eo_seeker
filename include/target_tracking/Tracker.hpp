@@ -22,11 +22,16 @@ public:
         // [Metrics] track_ms 세부 구간 계측 (2026-09 FPS 분석용).
         // update() 맨 끝에서만 채워지므로, 중간에 reinitTracker()가 result를
         // 통째로 덮어써도(result = reinitTracker(...)) 값이 사라지지 않는다.
-        bool   is_upscaled = false; // 이번 프레임이 업스케일 모드(표적 폭<60px)였는지
-        double resize_ms   = 0.0;   // 업스케일 모드일 때 "풀프레임" resize+cvtColor 비용 (비업스케일 시 0)
+        bool   is_upscaled = false; // 이번 프레임의 KCF 배율이 1보다 컸는지 (kcf_scale > 1)
+        double resize_ms   = 0.0;   // 배율 != 1일 때 "풀프레임" resize+cvtColor 비용 (축소 포함, 배율 1이면 cvtColor만)
         double kcf_core_ms = 0.0;   // KCF 코어 m_tracker->update() 자체 비용
         double verify_ms   = 0.0;   // 5프레임마다 도는 verifyTarget(NCC+ORB) 비용 (해당 없으면 0)
         double periodic_ms = 0.0;   // 30프레임마다 도는 이진화/컨투어/ORB 재추출(+reinit) 비용 (해당 없으면 0)
+
+        // [Metrics] EO-33/EO-5: KCF 입력 배율과 FFT 패치 크기 (resize=false 전제, 패치 = 2 × KCF bbox)
+        float  kcf_scale   = 1.0f;
+        int    kcf_patch_w = 0;
+        int    kcf_patch_h = 0;
     };
 
     Tracker();
@@ -53,12 +58,12 @@ public:
     void setVerificationMode(bool useFeature) { m_useFeaturMode = useFeature; }
 
     /**
-     * @brief 현재 시점의 outBbox를 기준으로 스케일을 반영하여 트래커 및 정답지 재설정
+     * @brief 현재 시점의 outBbox를 기준으로 배율을 다시 계산하여 트래커 및 정답지 재설정
      * @param frame 원본 1배 해상도 프레임
      * @param outBbox 원본 해상도 기준 현재 표적 좌표
-     * @param scaleFactor 업스케일링 여부에 따른 스케일 팩터 (예: 2.0f)
+     * @param smallMode 소형 표적 모드 여부 (배율은 kcfgeom::computeScale로 재계산)
      */
-    TrackingResult reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, float scaleFactor,
+    TrackingResult reinitTracker(const cv::Mat& frame, const cv::Rect& outBbox, bool smallMode,
                                   const cv::Rect& tightObjectRectRel = cv::Rect());
 
     float verifyCandidate(const cv::Mat& currentROI, const cv::Mat& refDescriptors, const cv::Mat& refTemplate);
@@ -69,6 +74,17 @@ private:
     cv::Ptr<cv::DescriptorMatcher> m_matcher;
 
     cv::Rect m_lastBbox;
+
+    // [EO-33/EO-5] KCF 입력 좌표계 관리. 배율은 init/reinit 시점에만 계산한다.
+    float    m_kcfScale  = 1.0f;   // KCF 입력 좌표 / 원본 좌표
+    bool     m_smallMode = false;  // 소형 표적 정책(75/50 히스테리시스) 상태
+    cv::Size m_origSize;           // 출력 bbox 크기 (init 시 원 ROI 크기로 고정)
+    cv::Size m_kcfPatch;           // FFT 패치 크기 (= 2 × KCF bbox, init/reinit 시 고정)
+
+    // 원본 프레임을 m_kcfScale만큼 리사이즈하고 KCF용 3채널로 맞춘다.
+    cv::Mat makeKcfFrame(const cv::Mat& frame) const;
+    // KCF 엔진을 resize=false로 만들고 원본 bbox로 시동한다 (init/reinit 공통).
+    void startKcf(const cv::Mat& frame, const cv::Rect& origBox, bool smallMode);
     float m_confidence;
     bool m_isInitialized;
     bool m_useFeaturMode = false; // 특징점 매칭 모드 사용 여부

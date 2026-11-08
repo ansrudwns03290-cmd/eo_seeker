@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
     if (metrics_csv.is_open()) {
         // [Metrics] track_ms 세부 구간(KCF 코어 / 업스케일 리사이즈 / NCC+ORB 검증 / 30프레임
         // 주기 재추출) 컬럼 추가. TRACK 상태가 아닌 프레임에서는 전부 0으로 채워진다.
-        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,track_kcf_ms,track_resize_ms,track_verify_ms,track_periodic_ms,track_is_upscaled,control_ms,servo_ms,visualize_ms,total_ms,reacquire_frames,bbox_x,bbox_y,bbox_w,bbox_h\n";
+        metrics_csv << "frame,fsm_state,read_ms,preprocess_ms,track_ms,track_kcf_ms,track_resize_ms,track_verify_ms,track_periodic_ms,track_is_upscaled,control_ms,servo_ms,visualize_ms,total_ms,reacquire_frames,bbox_x,bbox_y,bbox_w,bbox_h,kcf_scale,kcf_patch_w,kcf_patch_h,kcf_x,kcf_y,conf\n";
         std::cout << "[Metrics] 프레임별 타이밍 CSV 저장 경로: " << metrics_csv_path.string() << std::endl;
     } else {
         std::cerr << "[Metrics] 타이밍 CSV 파일을 열 수 없습니다: " << metrics_csv_path.string() << std::endl;
@@ -447,6 +447,7 @@ int main(int argc, char** argv) {
 
         // [Metrics] KCF가 확정한 표적 박스. TRACK에서 추적이 채택된 프레임만 채우고, 그 외는 -1.
         cv::Rect csv_bbox(-1, -1, -1, -1);
+        cv::Rect csv_kcf_bbox(-1, -1, -1, -1); // 채택 여부와 무관한 KCF 원출력 (TRACK에서 success일 때)
 
         // [Metrics] track_ms 세부 구간. TRACK 케이스에서만 채워지고, 그 외 상태(LOST/REACQUIRE)의
         // 프레임에서는 0으로 CSV에 남는다 (해당 없음을 의미).
@@ -455,6 +456,10 @@ int main(int argc, char** argv) {
         double track_verify_ms   = 0.0;
         double track_periodic_ms = 0.0;
         int    track_is_upscaled = 0;
+        // [Metrics] EO-33/EO-5: KCF 배율·FFT 패치 크기. TRACK 외 프레임은 0.
+        float  track_kcf_scale   = 0.0f;
+        int    track_kcf_patch_w = 0;
+        int    track_kcf_patch_h = 0;
 
         /* FSM 제어부: 현재 상태에 따른 행동 제어 및 조건 처리 */
         switch (fsm.getCurrentState()) {
@@ -475,6 +480,7 @@ int main(int argc, char** argv) {
                 Tracker::TrackingResult res = tracker.update(processed_img,
                 acq_manager.getTargetTemplate(), acq_manager.getTargetDescriptors());
                 isFound = res.success;
+                if (res.success) csv_kcf_bbox = res.bbox;
 
                 // [Metrics] Tracker::update()가 세분화해 돌려준 구간별 소요시간을 CSV용으로 보관
                 track_kcf_ms      = res.kcf_core_ms;
@@ -482,6 +488,9 @@ int main(int argc, char** argv) {
                 track_verify_ms   = res.verify_ms;
                 track_periodic_ms = res.periodic_ms;
                 track_is_upscaled = res.is_upscaled ? 1 : 0;
+                track_kcf_scale   = res.kcf_scale;
+                track_kcf_patch_w = res.kcf_patch_w;
+                track_kcf_patch_h = res.kcf_patch_h;
 
                 conf = tracker.getConfidence();
 
@@ -739,7 +748,9 @@ int main(int argc, char** argv) {
                         << ms(t_read_start, t_after_visualize) << ","
                         << reacquire_frames_this_row << ","
                         << csv_bbox.x << "," << csv_bbox.y << ","
-                        << csv_bbox.width << "," << csv_bbox.height << "\n";
+                        << csv_bbox.width << "," << csv_bbox.height << ","
+                        << track_kcf_scale << "," << track_kcf_patch_w << "," << track_kcf_patch_h << ","
+                        << csv_kcf_bbox.x << "," << csv_kcf_bbox.y << "," << conf << "\n";
         }
 
         // [진단용] 이번 프레임의 "카메라 대기"를 제외한 나머지(전처리~표시~waitKey) 소요 시간 누적
