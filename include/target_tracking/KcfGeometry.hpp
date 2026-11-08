@@ -11,11 +11,16 @@
  */
 namespace kcfgeom {
 
-// KCF 입력 bbox 긴 변 상한 (FFT 패치 긴 변 96px). 10/28 설계 확정값.
-constexpr int kMaxSide = 48;
+// [EO-33 11/08 재설계] 강건성 우선: 큰 표적은 실효 해상도 0.5를 하한으로 두고,
+// 아주 큰 표적만 긴 변 상한으로 추가 축소해 처리시간을 보호한다.
+// (상한 48 단독 설계는 해상도 0.27~0.33에서 추적 강건성이 무너져 폐기 — EO-33 진행 기록)
+constexpr int   kMaxSide    = 96;       // KCF 입력 bbox 긴 변 상한 (FFT 패치 긴 변 192px)
+constexpr int   kLargeArea  = 80 * 80;  // 이 면적을 넘는 표적은 0.5 배율 (기존 KCF 내부 max_patch_size와 동일 기준)
+constexpr float kLargeScale = 0.5f;
+
 /**
  * @brief 배율 결정. s = min(정책 배율, maxSide / 원 ROI 긴 변)
- * @param smallMode 소형 표적 모드면 정책 배율 2, 아니면 1 (상한이 항상 우선)
+ *        정책 배율: 소형 모드 2 / 면적 > kLargeArea 이면 0.5 / 그 외 1. 상한이 항상 우선.
  */
 float computeScale(cv::Size orig, bool smallMode, int maxSide = kMaxSide);
 

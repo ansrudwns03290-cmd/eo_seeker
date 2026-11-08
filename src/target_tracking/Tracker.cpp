@@ -582,6 +582,10 @@ void Tracker::startKcf(const cv::Mat& frame, const cv::Rect& origBox, bool small
     // resize=false: KCF 내부 1회 1/2 축소를 끄고 외부 배율 하나로 단일화 -> FFT 패치 = 2 × kcfBox
     cv::TrackerKCF::Params params;
     params.resize = false;
+    // OpenCV resize=true 경로는 output_sigma를 1/2 축소 "전" bbox 크기로 계산해(trackerKCF.cpp 202·206행)
+    // 패치 대비 정답 레이블이 2배 넓었다. resize=false로 바꾸며 이 효과가 사라져 강건성이 무너졌으므로
+    // 그 실효값(기본 1/16 × 2)을 명시한다. (EO-33 11/08, 배율 1 실험에서 기준선 수준 회복 확인)
+    params.output_sigma_factor = 1.0f / 8.0f;
     m_tracker = cv::TrackerKCF::create(params);
     m_tracker->init(kcfFrame, kcfBox);
 

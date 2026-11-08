@@ -11,19 +11,25 @@ bool isSmooth(int n) {
 cv::Point2f center(const cv::Rect& r) { return {r.x + r.width / 2.0f, r.y + r.height / 2.0f}; }
 } // namespace
 
-// --- computeScale: s = min(정책 배율, 48 / 긴 변) ---
-TEST(KcfGeometry, ScaleCapsLargeTarget) {
-    EXPECT_FLOAT_EQ(computeScale({196, 188}, false), 48.0f / 196.0f);
+// --- computeScale: s = min(정책 배율, 96 / 긴 변), 정책: 소형 2 / 면적>6400 0.5 / 그 외 1 ---
+TEST(KcfGeometry, ScaleLargeTargetHalf) {
+    EXPECT_FLOAT_EQ(computeScale({135, 144}, false), 0.5f);          // 96/144=0.667 > 0.5
+    EXPECT_FLOAT_EQ(computeScale({163, 177}, false), 0.5f);          // 96/177=0.542 > 0.5
+}
+TEST(KcfGeometry, ScaleCapsVeryLargeTarget) {
+    EXPECT_FLOAT_EQ(computeScale({300, 250}, false), 96.0f / 300.0f); // 상한이 0.5보다 우선
+}
+TEST(KcfGeometry, ScaleMediumTargetKeepsFullResolution) {
+    EXPECT_FLOAT_EQ(computeScale({70, 70}, false), 1.0f);            // 면적 4900 <= 6400
+    EXPECT_FLOAT_EQ(computeScale({80, 80}, false), 1.0f);            // 경계: 6400은 0.5 아님
+    EXPECT_FLOAT_EQ(computeScale({81, 80}, false), 0.5f);
 }
 TEST(KcfGeometry, ScaleSmallModeUpscalesUpToTwo) {
-    EXPECT_FLOAT_EQ(computeScale({20, 16}, true), 2.0f);        // 48/20=2.4 > 2 -> 2
-    EXPECT_FLOAT_EQ(computeScale({40, 30}, true), 48.0f / 40.0f); // 상한이 우선
+    EXPECT_FLOAT_EQ(computeScale({20, 16}, true), 2.0f);
+    EXPECT_FLOAT_EQ(computeScale({55, 50}, true), 96.0f / 55.0f);   // 상한이 우선
 }
-TEST(KcfGeometry, ScaleCapWinsForTallSmallTarget) {               // Q1: 50x150 -> s=2 금지
-    EXPECT_FLOAT_EQ(computeScale({50, 150}, true), 48.0f / 150.0f);
-}
-TEST(KcfGeometry, ScaleNeverUpscalesInNormalMode) {
-    EXPECT_FLOAT_EQ(computeScale({30, 30}, false), 1.0f);
+TEST(KcfGeometry, ScaleCapWinsForTallSmallTarget) {
+    EXPECT_FLOAT_EQ(computeScale({50, 150}, true), 96.0f / 150.0f);
 }
 
 // --- snapSmooth ---
@@ -32,7 +38,8 @@ TEST(KcfGeometry, SnapNearestSmoothWithinCap) {
     EXPECT_EQ(snapSmooth(37), 36);
     EXPECT_EQ(snapSmooth(13), 12);   // 12와 15 중 가까운 쪽
     EXPECT_EQ(snapSmooth(7), 8);     // 6과 8 동점 -> 큰 쪽
-    EXPECT_EQ(snapSmooth(60), 48);   // 상한 초과 금지
+    EXPECT_EQ(snapSmooth(89), 90);   // 89(소수) -> 90
+    EXPECT_EQ(snapSmooth(120), 96);  // 상한 초과 금지
     EXPECT_EQ(snapSmooth(0), 1);
 }
 TEST(KcfGeometry, SnapAlwaysSmoothForAllInputs) {

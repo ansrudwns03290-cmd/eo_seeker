@@ -10,7 +10,8 @@ float computeScale(cv::Size orig, bool smallMode, int maxSide) {
     const int longSide = std::max(orig.width, orig.height);
     if (longSide <= 0) return 1.0f;
 
-    const float policy = smallMode ? 2.0f : 1.0f;
+    const bool  large  = orig.area() > kLargeArea;
+    const float policy = smallMode ? 2.0f : (large ? kLargeScale : 1.0f);
     const float cap = static_cast<float>(maxSide) / static_cast<float>(longSide);
     return std::min(policy, cap);
 }
