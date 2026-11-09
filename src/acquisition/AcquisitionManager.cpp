@@ -1,3 +1,4 @@
+
 ﻿#include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
 #include "common/DebugConfig.hpp"
@@ -9,7 +10,7 @@ AcquisitionManager::AcquisitionManager() {
 /**
  * @brief 초기 설정한 ROI에서 표적의 ORB 및 가로세로비 저장
  */
-void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
+ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     if (roiImg.empty()) return;
 
     // 1. 박스 내 물체 분리를 위한 전처리
@@ -391,11 +392,12 @@ void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv:
         return;
     }
 
-    // TODO(직접) [P0 템플릿 갱신 승인 차단]
-    //   디스크립터가 kMinUpdateDescriptors 미만이면 갱신 전체(템플릿 + 디스크립터)를 거부하고 이전 모델을 유지한다.
-    //   - 거부 시 개수가 들어간 로그를 남긴다 (기존 "[Acquisition] 갱신 거부: ..." 형식과 맞출 것)
-    //   - 이 검사를 앵커 판정(isStillSimilarToOriginal)보다 앞에 둘지 뒤에 둘지 정하고, 이유를 설명할 수 있어야 한다
-    //   - 확인: ./build/pi-release/test_acquisition_manager (UpdateGateTest, AcceptsUpdateAtMinDescriptors 등 8개 통과)
+    // verifyTarget/verifyCandidate는 디스크립터 7개 미만이면 ORB를 쓰지 않음 → 미달 모델로 교체되면 ORB 검증이 꺼지므로 갱신 전체 거부
+    if (newDescriptors.rows < kMinUpdateDescriptors) {
+        std::cout << "[Acquisition] 갱신 거부: ORB 디스크립터 수(" << newDescriptors.rows
+                    << ")가 최소 요구(" << kMinUpdateDescriptors << ") 미만" << std::endl;
+        return;
+    }
 
     if (!isStillSimilarToOriginal(newTemplate, newDescriptors)) {
         std::cout << "[Acquisition] 갱신 거부: 최초 등록된 원본 표적과 너무 달라짐 (드리프트/배경 오검출 의심)" << std::endl;
