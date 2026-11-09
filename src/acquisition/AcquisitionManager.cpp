@@ -1,5 +1,5 @@
 
-﻿#include "acquisition/AcquisitionManager.hpp"
+#include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
 #include "common/DebugConfig.hpp"
 
