@@ -1,4 +1,5 @@
-﻿#include "acquisition/AcquisitionManager.hpp"
+
+#include "acquisition/AcquisitionManager.hpp"
 #include "target_tracking/Tracker.hpp"
 #include "common/DebugConfig.hpp"
 
@@ -9,7 +10,7 @@ AcquisitionManager::AcquisitionManager() {
 /**
  * @brief 초기 설정한 ROI에서 표적의 ORB 및 가로세로비 저장
  */
-void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
+ void AcquisitionManager::setTargetModel(const cv::Mat& roiImg) {
     if (roiImg.empty()) return;
 
     // 1. 박스 내 물체 분리를 위한 전처리
@@ -388,6 +389,13 @@ bool AcquisitionManager::isStillSimilarToOriginal(const cv::Mat& candidateTempla
 void AcquisitionManager::updateTargetModel(const cv::Mat& newTemplate, const cv::Mat& newDescriptors) {
     if (newTemplate.empty() || newDescriptors.empty()) {
         std::cerr << "[Acquisition] Warning: Attempting to update target model with empty template or descriptors." << std::endl;
+        return;
+    }
+
+    // verifyTarget/verifyCandidate는 디스크립터 7개 미만이면 ORB를 쓰지 않음 → 미달 모델로 교체되면 ORB 검증이 꺼지므로 갱신 전체 거부
+    if (newDescriptors.rows < kMinUpdateDescriptors) {
+        std::cout << "[Acquisition] 갱신 거부: ORB 디스크립터 수(" << newDescriptors.rows
+                    << ")가 최소 요구(" << kMinUpdateDescriptors << ") 미만" << std::endl;
         return;
     }
 

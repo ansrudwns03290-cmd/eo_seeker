@@ -5,6 +5,10 @@
 
 class AcquisitionManager {
 public:
+    // [P0] 모델 갱신을 승인하는 최소 ORB 디스크립터 수.
+    // verifyTarget / verifyCandidate가 ORB를 쓰는 기준(7)과 같아야 갱신 후에도 ORB 검증이 유지된다.
+    static constexpr int kMinUpdateDescriptors = 7;
+
     AcquisitionManager();
 
     // [핵심] 1. 초기 표적 설정: 사용자가 마우스로 선택한 이미지 조각에서 특징 추출

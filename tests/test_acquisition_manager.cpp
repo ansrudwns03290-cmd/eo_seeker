@@ -82,3 +82,72 @@ TEST(AcquisitionManagerTest, DetectCandidateReturnsFalseWhenSearchWindowSmallerT
     EXPECT_NO_THROW(found = acq.detectCandidateInPredictArea(gray, predictArea, 200, outBox));
     EXPECT_FALSE(found);
 }
+
+// ---------------------------------------------------------------------------
+// [P0] 템플릿 갱신 승인 차단: 디스크립터가 kMinUpdateDescriptors(7) 미만이면
+// 갱신 전체(템플릿 + 디스크립터)를 거부하고 이전 모델을 유지해야 한다.
+// 근거: verifyTarget / verifyCandidate는 디스크립터 7개 미만이면 ORB를 쓰지 않고
+//       NCC 단독으로 판정한다 → 7개 미만 모델로 교체되면 ORB 검증 층이 꺼진다.
+// ---------------------------------------------------------------------------
+namespace {
+
+// 내용은 무작위, 행 수만 의미가 있는 ORB 디스크립터 (32바이트/행)
+cv::Mat makeDescriptors(int rows) {
+    cv::Mat d(rows, 32, CV_8UC1);
+    cv::RNG rng(777);
+    rng.fill(d, cv::RNG::UNIFORM, 0, 256);
+    return d;
+}
+
+// 원본과 NCC는 거의 같지만(밝기 오프셋만 다름) 픽셀 값은 달라서
+// "템플릿이 실제로 교체됐는지"를 구분할 수 있는 새 템플릿
+cv::Mat makeShiftedTemplate(const cv::Mat& base) {
+    cv::Mat t;
+    base.convertTo(t, -1, 1.0, 10.0);
+    return t;
+}
+
+bool sameMat(const cv::Mat& a, const cv::Mat& b) {
+    return a.size() == b.size() && a.type() == b.type() && cv::norm(a, b, cv::NORM_INF) == 0;
+}
+
+class UpdateGateTest : public ::testing::TestWithParam<int> {};
+
+}  // namespace
+
+TEST_P(UpdateGateTest, RejectsWholeUpdateBelowMinDescriptors) {
+    AcquisitionManager acq;
+    acq.setTargetModel(makeTexturedObjectRoi());
+    const cv::Mat oldTemplate = acq.getTargetTemplate().clone();
+    const cv::Mat oldDesc     = acq.getTargetDescriptors().clone();
+    ASSERT_GE(oldDesc.rows, AcquisitionManager::kMinUpdateDescriptors);
+
+    const int n = GetParam();
+    acq.updateTargetModel(makeShiftedTemplate(oldTemplate), makeDescriptors(n));
+
+    EXPECT_TRUE(sameMat(acq.getTargetTemplate(), oldTemplate))   << "n=" << n << " 템플릿이 교체됨";
+    EXPECT_TRUE(sameMat(acq.getTargetDescriptors(), oldDesc))    << "n=" << n << " 디스크립터가 교체됨";
+}
+INSTANTIATE_TEST_SUITE_P(BelowMin, UpdateGateTest, ::testing::Values(1, 6));
+
+TEST(AcquisitionManagerTest, AcceptsUpdateAtMinDescriptors) {
+    AcquisitionManager acq;
+    acq.setTargetModel(makeTexturedObjectRoi());
+    const cv::Mat oldTemplate = acq.getTargetTemplate().clone();
+    const int n = AcquisitionManager::kMinUpdateDescriptors;   // 경계값 7은 승인
+
+    acq.updateTargetModel(makeShiftedTemplate(oldTemplate), makeDescriptors(n));
+
+    EXPECT_EQ(acq.getTargetDescriptors().rows, n);
+    EXPECT_FALSE(sameMat(acq.getTargetTemplate(), oldTemplate)) << "템플릿이 교체되지 않음";
+}
+
+TEST(AcquisitionManagerTest, RejectsUpdateWithZeroDescriptors) {   // 기존 동작 유지 확인
+    AcquisitionManager acq;
+    acq.setTargetModel(makeTexturedObjectRoi());
+    const cv::Mat oldDesc = acq.getTargetDescriptors().clone();
+
+    acq.updateTargetModel(makeShiftedTemplate(acq.getTargetTemplate()), cv::Mat());
+
+    EXPECT_TRUE(sameMat(acq.getTargetDescriptors(), oldDesc));
+}
