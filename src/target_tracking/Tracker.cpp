@@ -562,8 +562,10 @@ cv::Mat Tracker::makeKcfFrame(const cv::Mat& frame) const {
         const int interp = (m_kcfScale < 1.0f) ? cv::INTER_AREA : cv::INTER_LINEAR;
         cv::resize(frame, out, cv::Size(), m_kcfScale, m_kcfScale, interp);
     }
-    // [EO-8] 흑백 1채널을 그대로 전달 (가짜 3채널은 CN 서술자 계산만 낭비)
-    if (out.data == frame.data) {
+    // [EO-8 분리실험] 3채널 입력 + GRAY 서술자 (서술자 변경 효과만 분리)
+    if (out.channels() == 1) {
+        cv::cvtColor(out, out, cv::COLOR_GRAY2BGR);
+    } else if (out.data == frame.data) {
         out = frame.clone();
     }
     return out;
