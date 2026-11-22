@@ -562,10 +562,8 @@ cv::Mat Tracker::makeKcfFrame(const cv::Mat& frame) const {
         const int interp = (m_kcfScale < 1.0f) ? cv::INTER_AREA : cv::INTER_LINEAR;
         cv::resize(frame, out, cv::Size(), m_kcfScale, m_kcfScale, interp);
     }
-    // KCF 내부 고정 채널 충돌 방지 (가짜 3채널). PR #4(그레이스케일) 결정 전까지 기존 동작 유지.
-    if (out.channels() == 1) {
-        cv::cvtColor(out, out, cv::COLOR_GRAY2BGR);
-    } else if (out.data == frame.data) {
+    // [EO-8] 흑백 1채널을 그대로 전달 (가짜 3채널은 CN 서술자 계산만 낭비)
+    if (out.data == frame.data) {
         out = frame.clone();
     }
     return out;
@@ -586,6 +584,12 @@ void Tracker::startKcf(const cv::Mat& frame, const cv::Rect& origBox, bool small
     // 패치 대비 정답 레이블이 2배 넓었다. resize=false로 바꾸며 이 효과가 사라져 강건성이 무너졌으므로
     // 그 실효값(기본 1/16 × 2)을 명시한다. (EO-33 11/08, 배율 1 실험에서 기준선 수준 회복 확인)
     params.output_sigma_factor = 1.0f / 8.0f;
+    // [EO-8] 흑백 입력: CN을 끄고 GRAY를 PCA/비PCA 양쪽에 배정.
+    // OpenCV 4.10.0 trackerKCF.cpp 395~396행이 빈 서술자를 검사하지 않아, 한쪽만 두면 두 번째 update에서 예외.
+    // GRAY 단독 PCA는 1x1 투영이라 압축 효과는 없고, compressed_size는 588행 assert 때문에 1로 고정.
+    params.desc_pca        = cv::TrackerKCF::GRAY;
+    params.desc_npca       = cv::TrackerKCF::GRAY;
+    params.compressed_size = 1;
     m_tracker = cv::TrackerKCF::create(params);
     m_tracker->init(kcfFrame, kcfBox);
 
