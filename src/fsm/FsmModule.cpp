@@ -65,10 +65,13 @@ void FsmModule::update(const Frame& currentFrame, float currentConfidence, bool 
 
     switch (m_currentState) {
         case FSMState::SEARCH: {
-            // [SEARCH -> TRACK] 
-            // 외부(main 루프)에서 acq_manager를 통해 유효한 표적이 최초 획득(Lock-On)되면 
-            // main이 fsm.setTargetBox() 후 fsm.forceSetState(TRACK)로 전이시키므로
-            // SEARCH 상태 내부에서는 본인 상태를 유지하며 자동/수동 입력을 대기합니다.
+            if (kcfSuccess) {
+                m_temporaryBox = m_targetBox; // 후보 박스 보관
+                std::cout << "[FSM:SEARCH] 후보 박스 발견 -> REACQUIRE로 전달" << std::endl;
+                nextState = FSMState::REACQUIRE;
+            } else {
+                nextState = FSMState::SEARCH; // 계속 SEARCH 상태 유지
+            }
             break;
         }
 

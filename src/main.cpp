@@ -380,6 +380,9 @@ int main(int argc, char** argv) {
     int   stat_reacquire_success = 0;
     int   stat_reacquire_fail    = 0;
     bool        search_logged = false;
+    constexpr int kSearchEveryN = 3;
+    int search_frame_counter = 0;
+
     std::string exit_reason   = "EOF";   
     FSMState prev_fsm_state      = FSMState::TRACK;
 
@@ -604,15 +607,21 @@ int main(int argc, char** argv) {
                 break;
             }
             case FSMState::SEARCH: {
-                // 표적 완전 상실. 재탐색은 미구현이므로 대기 상태로 유지(서보 정지는 ControlCommand에서 처리).
-                // 측정 구간을 영상 전체로 고정하기 위해 종료하지 않고 EOF까지 진행한다.
-                if (!search_logged) {
-                    std::cout << "[System] SEARCH 진입 (frame " << current_frame.frame_count
-                              << "), 재탐색 미구현 - EOF까지 대기" << std::endl;
-                    search_logged = true;
-                }
                 isFound = false;
-                conf    = 0.0f;
+                conf = 0.0f;
+                if (acq_manager.getTargetTemplate().empty()) break;
+                if (++search_frame_counter & kSearchEveryN != 0) break;
+
+                // 화면 중앙에 마지막 표적 크기 박스를 두고 창을 화면 크기만큼 → 전체 화면 탐색
+                const int W = current_frame.width, H = current_frame.height;
+                cv::Rect center_box(W / 2 - target_box.width / 2, H / 2 - target_box.height / 2,
+                                    target_box.width, target_box.height);
+                cv::Rect candidate;
+                if (acq_manager.detectCandidateInPredictArea(processed_img, center_box,
+                                                            std::max(W, H), candidate)) {
+                    fsm.setTargetBox(candidate);   // 다음 프레임 REACQUIRE에서 ORB/NCC 검증
+                    isFound = true;
+                }
                 break;
             }
         }
